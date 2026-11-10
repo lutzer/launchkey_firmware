@@ -18,6 +18,10 @@ Goal: analyse Novation Launchkey Mini MK4 firmware (v1563) and add functions by 
 - `tools/send_syx.py` – MIDI upload with per-block ack handshake; `--inquiry`, `--list`, `--dry-run`.
   Prints the file's version and which `patches/*.patch` are present in the image (checked byte-wise).
 - `tools/bitmap.py` – list/export/patch OLED images; `assets/boot_logo.txt` -> `patches/010-boot-logo.patch`.
+- `cfw/` – C code for the free flash after the image (`cfw/cfw.ld`: code from 0x080372B4, 256 B RAM @0x2000F520,
+  no initialised .data). Firmware functions: `cfw/fw_api.h` + `cfw/fw_api.ld`; hook sites: `cfw/hooks.txt`.
+  `make cfw` (xcrun clang + Homebrew `ld.lld`) -> `tools/mkcave.py` -> `patches/100-cfw-code.patch`,
+  `patches/101-cfw-hooks.patch`. `make cfw-test` runs host unit tests (`cfw/test/`).
 
 ## Container format (verified: round-trip byte-identical, CRC matches)
 
@@ -40,7 +44,7 @@ Goal: analyse Novation Launchkey Mini MK4 firmware (v1563) and add functions by 
 - REA MCP: Hopper provider works on `build/lkmini4-1563.elf` (`open_binary` with `provider_id: "hopper"`).
   Raw-binary mode needs Ghidra (not installed). Re-run `make` and reopen after editing `symbols.txt`.
 - `xcrun llvm-objdump` (Xcode) disassembles; `xcrun clang -target thumbv7em-none-eabi -mcpu=cortex-m4` compiles.
-  No ARM linker is installed yet (needed for C code caves).
+  Linker: Homebrew `lld` (`ld.lld`).
 
 ## Update protocol on the device (fw 1563, handler 0x08030E00)
 

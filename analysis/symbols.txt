@@ -47,7 +47,7 @@
 # --- scale ---
 0x0801f6b0 feat_scale_filter
 0x0801f750 feat_scale_init
-0x0801f7c0 g_scale_intervals             data
+0x08031de0 g_scale_intervals             data
 0x08029a1c scale_set_intervals_root
 0x08029ae8 scale_set_enabled
 0x08029b0e scale_set_mode
@@ -55,3 +55,19 @@
 0x08029b3a scale_get_enabled
 0x08029b40 scale_get_root
 0x2000ece4 g_scale                       data
+
+# --- layouts / modes / input (see NOTES.md "Modes and layouts") ---
+0x080159c0 layout_select
+0x0801ec1c layout_index
+0x08029cfc layout_type
+0x0802ae30 ui_layout_name
+0x080224fe ui_show_encoder_mode
+0x0802257c ui_shift_button
+0x08020e48 relin_notify_pos
+0x08020e56 relin_notify_hires
+0x08020e8a relin_notify_step
+0x080210ea relin_add_pos_listener
+0x08021100 relin_add_hires_listener
+0x0802112a relin_add_step_listener
+0x08027de4 str_append
+0x08027f2a fmt_version

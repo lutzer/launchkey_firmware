@@ -10,16 +10,41 @@
 ## Open questions
 
 - [ ] Exact MCU part / flash size (look for the DBGMCU IDCODE read at 0xE0042000 and the flash-size register).
-- [ ] Where settings are stored (`serstor_hw.c`, `confsys.c`): which flash sector? Is 0x080372B4–0x0803FFFF free for code?
-      (RAM side and save mechanism are understood, see "Settings storage"; the flash sector is still unknown.)
+- [x] Where settings are stored: in an **external SPI NOR flash** (`serstor_hw.c` @~0x08011B24 issues 0x02 page
+      program, 0x03 read, 0x20/0x52/0xD8 erase, 0x05 status). The app never unlocks internal flash (no FLASH_KEYR
+      keys in the image; FLASH regs only touched for ACR latency/caches), so updates are staged in SPI flash and
+      installed by the bootloader. -> 0x080372B3..0x0803FFFF of the 0x38000 app slot is free for code
+      (36 173 bytes). Exact SPI address map of the settings / update staging area still unknown.
+- [x] Bootloader installs a grown image: Phase 0 cfw build (193 332 bytes, code at 0x080372B4, hook replacing
+      `bl feat_scale_init`) flashed 2026-11-10, device boots and works normally -> code past the old end runs.
 - [x] ID bytes `01 03 0c 1b 0d 35` = firmware version: 1.3, build 1563 (0x0c<<7|0x1b), 1717 (0x0d<<7|0x35).
       Same values as u32s at 0x080081F0 (`g_fw_version`). Still unknown whether the bootloader checks them.
       App side: boot screen prints all 4 fields; inquiry reply (0x080115B6) sends major, minor, build only;
       0x7C header version is just stored in the update state (0x0801B92C), not compared. Patched builds put the
       patch count in field 4 (see apply_patches.py).
-- [ ] Does the bootloader accept an image larger than the original (code-cave growth)?
+- [x] Does the bootloader accept an image larger than the original (code-cave growth)? Yes (see above).
 - [ ] MIDI input dispatch / SysEx handler (entry point for new functions).
 - [ ] Recovery: bootloader mode button combo, in case a patched image doesn't boot.
+
+## Memory budget (fw 1563)
+
+- Flash: app slot 0x08008000..0x0803FFFF = 0x38000 (updater limit), image 193 203 bytes (84 %), **35.3 KiB free**.
+- RAM (64 KiB): RW data 0x20000000..0x200015D0 (decompressed from the image end), zero-init
+  0x200015D0..0x2000F518 (scatter table @0x08033544), leaves **2 792 bytes** up to 0x20010000 for the main stack
+  (initial SP 0x2000FFF8). Any new feature must find RAM inside existing buffers or share that headroom.
+
+## Modes and layouts (fw 1563)
+
+- Layout handle = `{u32 index; u8 type}` (type 1 = pads, 2 = encoders, 3 = faders; `layout_type` @0x08029CFC).
+- `layout_select(handle, kind)` @0x080159C0 stores the index in a feature param: **0x1D pad mode, 0x1E encoder
+  mode, 0x1F fader mode** (`confsys_set_param(0xD0, id, {index, 0}, 2)`), so mode changes reach feature listeners.
+- `ui_layout_name` @0x0802AE30: pad layouts 5..8 (or 0) = "Custom 1..4"; encoder layouts 6..9 (or 0) =
+  "Custom 1..4" -> **encoder Custom 4 = 0x1E value 9**.
+- Feature listener slots: 6 of 8 used (`feat_add_listener`), filters 5 of 8.
+- Relative input (encoders, inputrelative.cpp): three listener lists of max 4, notified with (id, value, delta):
+  `relin_notify_pos` @0x08020E48 (list 0x2000F210, 2 users), `relin_notify_hires` @0x08020E56 (0x2000F224, 1 user),
+  `relin_notify_step` @0x08020E8A (0x2000F238, 2 users). Registered at 0x08015FB6.. and 0x08016636...
+  [ ] which list drives Custom-mode CC output, encoder id numbering (needs a hardware test).
 
 ## Display (fw 1563)
 
@@ -53,7 +78,7 @@
 
 ## Scale (fw 1563)
 
-- Feature params: 0x4A scale on/off (0 / 0x7F), 0x3E scale type (1..0x1E, 12-byte interval masks @0x0801F7C0),
+- Feature params: 0x4A scale on/off (0 / 0x7F), 0x3E scale type (1..0x1E, 12-byte semitone masks @0x08031DE0, max 8 notes),
   0x3D root note (0..11), 0x3C scale mode (0..2: snap / filter / easy).
 - `feat_scale_init` @0x0801F750 defines them (flags=1, default off / Major / C / 0); `feat_scale_filter` @0x0801F6B0
   pushes values into the scale engine `g_scale` @0x2000ECE4 (scale.cpp: +0 enabled, +4 12-byte map,

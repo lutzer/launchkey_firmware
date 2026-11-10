@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "mido>=1.3",
+    "pyelftools>=0.33",
     "python-rtmidi>=1.5",
 ]
 

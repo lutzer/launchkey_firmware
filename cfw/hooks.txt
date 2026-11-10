@@ -1,0 +1,9 @@
+# Hooks from the stock firmware into cfw code. tools/mkcave.py turns these into
+# patches/101-cfw-hooks.patch.
+#
+#   <address>  bl|b.w  <cfw symbol>  <original bytes hex>   # comment
+#
+# The original bytes are verified, so a hook never lands on the wrong instruction.
+
+0x0801592c  bl  cfw_init          09f010ff   # was: bl feat_scale_init (end of feature init)
+0x08016e42  bl  cfw_boot_version  11f072f8   # was: bl fmt_version (boot screen "Ver: ...")
