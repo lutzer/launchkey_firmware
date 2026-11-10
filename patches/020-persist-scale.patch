@@ -1,0 +1,13 @@
+# Remember the scale across power cycles (on/off, scale type, root note, scale mode).
+#
+# feature_scale init (0x0801F750) defines its four feature params (group 0xD0) with
+# flags = 1 (defined). Feature params with flag bit1 set live in the persistent
+# blob 0x2000DD8C (confstore key 0xFEA70BE5, saved ~3 s after a change) and are
+# re-applied through the scale filter when confstore finishes loading at boot.
+# The Settings menu params use flags = 3 (e.g. 0x0801EFF8); we do the same here.
+#
+#   0x4A scale on/off   0x3E scale type   0x3D root note   0x3C scale mode
+#
+# The single 'movs r0,#1' at 0x0801F75E is stored as the flags word ([sp,#4]) for
+# all four definitions (0x4A, 0x3E, 0x3D, 0x3C).
+0x0801f75e  0120  0320          # movs r0,#1 -> movs r0,#3  (flags: defined|persistent)

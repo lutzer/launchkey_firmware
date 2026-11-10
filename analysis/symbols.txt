@@ -23,3 +23,35 @@
 0x08032994 g_screen_templates           data
 0x0802e994 g_strings_en                 data
 0x080081f0 g_fw_version                 data
+
+# --- confsys / confstore / feature params (see NOTES.md "Settings storage") ---
+0x08016c50 confsys_get_param
+0x08016c88 confsys_set_param
+0x08016df2 feat_add_filter
+0x08016df6 feat_add_listener
+0x08016e7a confstore_register
+0x08016f7e confstore_add_loaded_cb
+0x08016f9e confstore_mark_dirty
+0x08016fee confstore_poll
+0x08026cac feat_on_store_loaded
+0x08026cf2 feat_store_init
+0x08026d14 feat_get_param
+0x08026d64 feat_set_param
+0x08026f64 feat_add_filter_impl
+0x08026f88 feat_add_listener_impl
+0x2000dd8c g_feat_persist                data
+0x2000e014 g_feat_volatile               data
+0x2000e094 g_feat_flags                  data
+0x2000ea88 g_feat_state                  data
+
+# --- scale ---
+0x0801f6b0 feat_scale_filter
+0x0801f750 feat_scale_init
+0x0801f7c0 g_scale_intervals             data
+0x08029a1c scale_set_intervals_root
+0x08029ae8 scale_set_enabled
+0x08029b0e scale_set_mode
+0x08029b34 scale_get_mode
+0x08029b3a scale_get_enabled
+0x08029b40 scale_get_root
+0x2000ece4 g_scale                       data

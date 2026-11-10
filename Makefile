@@ -2,7 +2,7 @@
 #
 #   make            unpack original + build analysis ELF
 #   make verify     prove the syx codec round-trips byte-for-byte
-#   make patched    apply patches/*.patch and repack -> build/patched.syx
+#   make patched    apply patches/*.patch, bump version, repack -> build/patched.syx
 #   make disasm     full Thumb disassembly -> build/lkmini4-1563.s
 #   make inquiry    ask the connected Launchkey for model + firmware version
 #   make upload     build + flash build/patched.syx (asks for confirmation)
@@ -34,13 +34,14 @@ disasm: $(ELF)
 
 # Bitmap patches are generated from editable ASCII art in assets/
 patches/010-boot-logo.patch: assets/boot_logo.txt $(BIN) tools/bitmap.py
-	$(PY) tools/bitmap.py patch $(BIN) 0x27f $< -o $@
+	$(PY) tools/bitmap.py patch $(BIN) 0x27f $< -o $@ --title "Boot logo: CFW badge next to the Novation logo"
 
+# Version field 4 = number of patches (stock 1.3.1563.1717 -> 1.3.1563.<n>)
 build/patched.bin: $(BIN) $(PATCHES) tools/apply_patches.py
-	$(PY) tools/apply_patches.py $(BIN) $@ $(PATCHES)
+	$(PY) tools/apply_patches.py $(BIN) $@ --meta $(BIN).json $(PATCHES)
 
 patched: build/patched.bin
-	$(PY) tools/lkfw.py pack $< build/patched.syx --meta $(BIN).json
+	$(PY) tools/lkfw.py pack $< build/patched.syx --meta $<.json
 	$(PY) tools/lkfw.py verify build/patched.syx
 
 build:

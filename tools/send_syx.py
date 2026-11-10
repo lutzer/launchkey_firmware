@@ -22,7 +22,10 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import apply_patches  # noqa: E402
 import lkfw  # noqa: E402
+
+PATCH_DIR = Path(__file__).resolve().parent.parent / "patches"
 
 NOVATION = (0x00, 0x20, 0x29)
 PORT_HINT = "Launchkey Mini MK4"
@@ -67,6 +70,25 @@ def is_ack(d, cmd):
 
 def ack_value(d):
     return d[5] | d[6] << 7 | d[7] << 14 if len(d) >= 8 else None
+
+
+def describe(image, meta):
+    """Print the header version and which patches/*.patch are present in the image."""
+    v = bytes.fromhex(meta["start_payload"])[2:8]
+    print(f"version {v[0]}.{v[1]}.{v[2] << 7 | v[3]}.{v[4] << 7 | v[5]}")
+    patches = sorted(PATCH_DIR.glob("*.patch"))
+    found = [(p, apply_patches.status(image, p)) for p in patches]
+    applied = [(p, st) for p, st in found if st != "not applied"]
+    if not applied:
+        print("patches: none (stock firmware)")
+        return
+    print("patches:")
+    for p, st in applied:
+        mark = "" if st == "applied" else f"  [{st.upper()}]"
+        print(f"  {p.name:28} {apply_patches.parse(p)[0]}{mark}")
+    missing = [p.name for p, st in found if st == "not applied"]
+    if missing:
+        print(f"not in this image: {', '.join(missing)}")
 
 
 def inquiry(mido, out_name, in_name):
@@ -164,6 +186,7 @@ def main():
     image, meta = lkfw.unpack(blob)  # raises on bad CRC / format
     msgs = lkfw.split_sysex(blob)
     print(f"{a.syx}: {len(msgs)} messages, image {len(image)} bytes, crc 0x{meta['crc']:08x} OK")
+    describe(image, meta)
     if len(image) > 0x38000:
         sys.exit("image larger than 0x38000 bytes – the firmware's updater rejects that")
     if a.dry_run:

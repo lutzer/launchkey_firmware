@@ -7,13 +7,16 @@ Goal: analyse Novation Launchkey Mini MK4 firmware (v1563) and add functions by 
 - `firmware/original/` – untouched vendor `.syx` files (never edit)
 - `tools/lkfw.py` – SysEx codec: `unpack`, `pack`, `info`, `verify` (pack recomputes size + CRC)
 - `tools/mkelf.py` – wraps the raw image in an ARM ELF (base 0x08008000, Thumb, vector + `analysis/symbols.txt` names)
-- `tools/apply_patches.py` – applies `patches/*.patch` (`<addr> <orig hex|-> <new hex>`, orig bytes are verified)
+- `tools/apply_patches.py` – applies `patches/*.patch` (`<addr> <orig hex|-> <new hex>`, orig bytes are verified;
+  first comment line = patch title) and sets version field 4 to the patch count: stock 1.3.1563.1717 -> 1.3.1563.<n>
+  (image `g_fw_version` + SysEx header; boot screen shows it, device inquiry only carries 1.3.1563)
 - `analysis/symbols.txt` – names we discover; rebuilt into the ELF by `make`
 - `analysis/NOTES.md` – findings log (keep updated)
 - `build/` – generated (gitignored): `.bin`, `.bin.json`, `.elf`, `.s`, `patched.syx`
 - `make` / `make verify` / `make disasm` / `make patched` / `make inquiry` / `make upload` / `make restore`
 - Python runs through **uv** (`pyproject.toml`, `uv.lock`, `.python-version`): use `uv run python tools/...`, add deps with `uv add`.
 - `tools/send_syx.py` – MIDI upload with per-block ack handshake; `--inquiry`, `--list`, `--dry-run`.
+  Prints the file's version and which `patches/*.patch` are present in the image (checked byte-wise).
 - `tools/bitmap.py` – list/export/patch OLED images; `assets/boot_logo.txt` -> `patches/010-boot-logo.patch`.
 
 ## Container format (verified: round-trip byte-identical, CRC matches)
