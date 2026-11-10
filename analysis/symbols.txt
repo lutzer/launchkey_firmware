@@ -3,3 +3,23 @@
 #
 # <address> <name> [func|data]     (func is default; Thumb bit is added automatically)
 # Vector-table handlers (Reset_Handler, SysTick_Handler, IRQn_Handler, ...) are added automatically.
+
+# --- display (see NOTES.md "Display") ---
+0x08016e04 ui_show_boot_screen
+0x080185c0 disp_set_screen
+0x080188b0 disp_set_field_text
+0x0801890c disp_set_field_num
+0x08018a60 disp_render_template
+0x080121d8 dl_draw_image
+0x08012194 dl_fill_rect
+0x080123d0 img_get_info
+0x0801244c dl_interpret
+0x08010a94 ring_put_byte
+0x08010aac ring_get_byte
+0x08015b0c str_get
+0x0802df94 g_image_table                data
+0x0800e600 g_image_data                 data
+0x0800f894 img_boot_logo_639            data
+0x08032994 g_screen_templates           data
+0x0802e994 g_strings_en                 data
+0x080081f0 g_fw_version                 data

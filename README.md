@@ -14,24 +14,50 @@ a modified build to the device.
 
 | Tool | Needed for | Install |
 |---|---|---|
-| Python 3.10+ | everything | already installed |
+| [uv](https://docs.astral.sh/uv/) | Python + dependencies for all tools | `brew install uv` |
 | `make` | build pipeline | Xcode command line tools |
 | `xcrun llvm-objdump` | disassembly (`make disasm`) | Xcode |
-| `mido` + `python-rtmidi` | uploading from the command line (optional) | `pip3 install -r requirements.txt` |
-| [SysEx Librarian](https://www.snoize.com/SysExLibrarian/) | uploading from a GUI (optional) | already installed in `/Applications` |
+| [SysEx Librarian](https://www.snoize.com/SysExLibrarian/) | uploading from a GUI (optional fallback) | already installed in `/Applications` |
 | ARM linker (`arm-none-eabi-gcc`) | compiling **new C code** into the firmware (later) | `brew install --cask gcc-arm-embedded` |
 | Ghidra + Java (optional) | better ARM decompilation in REA | `brew install --cask ghidra` |
 | REA MCP server | AI-assisted reverse engineering in Claude Code | `npm install` (already in `package.json`) |
 
 ---
 
+## Python environment (uv)
+
+This project uses [uv](https://docs.astral.sh/uv/) to manage Python and its
+dependencies. Everything is set up in `pyproject.toml`, `uv.lock` (exact
+versions) and `.python-version` (Python 3.12).
+
+```sh
+uv sync                                   # one-time setup: creates .venv/ with mido + python-rtmidi
+uv run python tools/lkfw.py info firmware/original/launchkeyminimk4-firmware-1563.syx
+uv run tools/send_syx.py --inquiry        # any tool runs the same way
+```
+
+- `uv run …` uses the project environment automatically. You don't need to
+  activate anything, and it runs `uv sync` first if needed.
+- The Makefile already calls every tool through `uv run python`.
+- To add a dependency, run `uv add <package>`. This updates `pyproject.toml` and
+  `uv.lock`; commit both.
+- `.venv/` is gitignored. Delete it at any time and run `uv sync` to recreate it.
+- The tools are plain scripts under `tools/`, so no package is built or installed
+  (`[tool.uv] package = false`).
+
+---
+
 ## Quick start
 
 ```sh
+uv sync         # once: Python environment
 make            # unpack the original .syx -> build/lkmini4-1563.bin (+ .json, + .elf)
 make verify     # prove the SysEx codec round-trips the original byte-for-byte
 make disasm     # full Thumb disassembly -> build/lkmini4-1563.s
 make patched    # apply patches/*.patch, repack -> build/patched.syx (CRC recalculated)
+make inquiry    # ask the connected Launchkey for its model + firmware version
+make upload     # build + flash build/patched.syx (asks before flashing)
+make restore    # flash the untouched original firmware
 make clean      # delete build/
 ```
 
@@ -47,7 +73,8 @@ firmware/original/      vendor .syx files – never edit these
 tools/lkfw.py           SysEx codec: unpack / pack / info / verify
 tools/mkelf.py          wraps the raw image in an ARM ELF for disassemblers
 tools/apply_patches.py  applies patches/*.patch with original-byte checks
-tools/send_syx.py       uploads a .syx to the device over MIDI
+tools/send_syx.py       uploads a .syx to the device over MIDI (with acknowledgement handshake)
+tools/bitmap.py         lists / exports / patches the OLED graphics
 analysis/symbols.txt    function/data names you discover (fed into the ELF)
 analysis/NOTES.md       findings log and open questions
 patches/                your patches (*.patch), applied in alphabetical order
@@ -138,63 +165,125 @@ A patch file in `patches/` contains one edit per line:
 
 `make patched` → `build/patched.syx`, ready to upload.
 
+### Editing screen graphics (example: boot logo)
+
+All OLED graphics are stored in the firmware's image table, so you can change
+them without writing any code:
+
+```sh
+python3 tools/bitmap.py list   build/lkmini4-1563.bin              # all images: id, address, size
+python3 tools/bitmap.py export build/lkmini4-1563.bin 0x27f x.txt  # dump as ASCII art
+```
+
+Edit the ASCII art (`#` = pixel on, `.` = off) without changing its size.
+`assets/boot_logo.txt` is the boot logo (image `0x27F`, 128×48). `make patched`
+regenerates `patches/010-boot-logo.patch` from it automatically. The original
+logo is saved in `assets/boot_logo.orig.txt`.
+
 ---
 
 ## Uploading firmware to the Launchkey Mini MK4
 
-> These upload steps are **not yet tested on a real device**. Update this
-> section once a method has been confirmed to work.
+> **Status:** the update protocol below was reverse engineered from firmware
+> 1563. Model/version queries have been tested on a real Launchkey Mini MK4 25.
+> **No modified firmware has been flashed yet.** Update this section once the
+> first upload has been done.
+
+### How updating works
+
+You don't need a special boot mode. The **running firmware** receives the update
+over its **"MIDI"** USB port (not the "DAW" port):
+
+1. The computer sends a start message (`0x71`) and a header (`0x7C`) with size,
+   CRC and version.
+2. The device replies **"ready"**. It may show *Press to Upgrade* first and
+   wait for you to confirm on the keyboard.
+3. The computer sends 6,037 data blocks of 32 bytes (`0x72`). The device
+   **acknowledges every block**, and the display shows *Receiving App…*.
+4. The computer sends the last block (`0x73`), which contains the start-up
+   vectors. The device checks the CRC and restarts with the new firmware. If the
+   check fails, it shows *Upgrade Failed*.
+
+The same firmware file works for the 25- and 37-key models. The firmware
+detects which model it's running on at power-up. The device rejects images
+larger than 224 KB (`0x38000` bytes).
 
 ### Before you start
 
-1. Keep a copy of the original `.syx` (it's in `firmware/original/`).
-2. Connect the Launchkey **directly** to the Mac with a good USB cable. Avoid
-   hubs.
-3. Close every app that uses the Launchkey's MIDI ports: DAWs, Novation
-   Components, browsers with Web MIDI tabs.
-4. Always build with `make patched`. It recalculates and checks the CRC.
+1. Connect the Launchkey **directly** to the Mac (no hub) with a good cable, and
+   make sure the laptop won't go to sleep.
+2. **Quit every app that uses the Launchkey**: DAWs, Novation Components, browser
+   tabs with Web MIDI. Only one program should talk to the device.
+3. Check that the computer can see the device:
+   ```sh
+   make inquiry
+   # Launchkey Mini MK4 25, firmware 1.3 build 1563
+   ```
+4. Build and check the firmware:
+   ```sh
+   make patched                                   # -> build/patched.syx
+   uv run tools/send_syx.py build/patched.syx --dry-run
+   ```
 
-### Recommended first test: upload the unmodified firmware
-
-Before you flash anything modified, run a full upload with **no patches** in
-`patches/`. That `build/patched.syx` is byte-identical to the vendor file, so
-this test checks only the upload process and leaves the firmware itself
-unchanged.
-
-### Option A: SysEx Librarian (GUI)
-
-1. Open **SysEx Librarian**.
-2. Under *Destination*, select the Launchkey's **MIDI** port (not the "DAW" port).
-3. Drag `build/patched.syx` into the window.
-4. Open *Preferences → Transmitting* and set a **delay between messages of
-   about 20 ms** or more. Firmware messages that are sent too fast can be dropped.
-5. Select the file and click **Play**. Don't unplug the device until it finishes.
-6. The device should restart with the new firmware.
-
-### Option B: command line
+### Upload the patched firmware (recommended: command line)
 
 ```sh
-pip3 install -r requirements.txt
-python3 tools/send_syx.py --list                                  # find the port name
-python3 tools/send_syx.py build/patched.syx --dry-run             # validate only
-python3 tools/send_syx.py build/patched.syx --port "Launchkey Mini MK4 MIDI" --delay-ms 20
+make upload
 ```
 
-The script checks size and CRC before sending, then sends one message at a time.
-A full upload takes about 2 minutes at 20 ms per message.
+This is the same as `uv run tools/send_syx.py build/patched.syx`. The uploader:
 
-### Option C: Novation Components (official)
+1. checks the file's size and CRC, then finds the Launchkey "MIDI" port
+   automatically,
+2. asks **"Flash this firmware now?"**; answer `y`,
+3. sends start + header and **waits up to 120 s for the device's "ready"**. If
+   the display shows *Press to Upgrade*, confirm on the keyboard,
+4. sends each block and waits for its acknowledgement, showing progress,
+5. sends the last block and prints the device's final status reply.
 
-[Novation Components](https://components.novationmusic.com) installs official
-firmware only. Use it to return to stock firmware.
+**Don't unplug the keyboard or close the terminal during the upload.** When it
+has finished, run `make inquiry` again. The version stays `1.3 build 1563`
+because only the image changed, not the version number. To check that the patch
+is active, look at the device: for the boot logo patch, unplug and reconnect
+it and watch the start screen for the **CFW** badge.
 
-### Checking the result
+Useful options:
 
-- Watch the device's response with SysEx Librarian's *Record* function or with a
-  MIDI monitor. This can show whether the device acknowledges messages. Note
-  your findings in `analysis/NOTES.md`.
-- Novation devices report their firmware version on request (Universal Device
-  Inquiry `F0 7E 7F 06 01 F7`).
+| Option | Effect |
+|---|---|
+| `--port "MK4 37"` | choose a different port (substring of the name) |
+| `--yes` | don't ask for confirmation |
+| `--confirm-timeout 300` | wait longer for the "ready" / button press |
+| `--ack-timeout 5` | wait longer for each block acknowledgement |
+| `--no-ack --delay-ms 20` | blind mode: ignore acknowledgements and pause between messages |
+| `--list` | list all MIDI ports |
+
+If the uploader reports **no "ready"**, nothing has been written yet. Check that
+no other app is using the port and try again. If it stops **in the middle** of
+the upload, don't unplug the device. Run `make upload` (or `make restore`)
+again right away.
+
+### Go back to the original firmware
+
+```sh
+make restore      # flashes firmware/original/launchkeyminimk4-firmware-1563.syx
+```
+
+You can also use [Novation Components](https://components.novationmusic.com),
+which installs the official firmware.
+
+### Alternative: SysEx Librarian (GUI)
+
+This option sends without waiting for acknowledgements, so use it only if the
+command line doesn't work.
+
+1. Open **SysEx Librarian** and select the Launchkey's **MIDI** port as the
+   destination (not "DAW").
+2. In *Preferences → Transmitting*, set a **delay between messages of at least 20 ms**.
+3. Drag `build/patched.syx` into the window, select it and click **Play**.
+4. If the display shows *Press to Upgrade*, confirm on the device. Messages sent
+   before you confirm may be ignored. If the upload then fails, send the file
+   again after confirming.
 
 ---
 
@@ -203,6 +292,8 @@ firmware only. Use it to return to stock firmware.
 - The update only rewrites the application area (from `0x08008000`). The
   bootloader at `0x08000000` stays the same, so the device should still accept
   a new upload even when a patched image fails to start.
+- The uploader only starts sending data after the device has replied "ready", and
+  it stops at the first missing acknowledgement.
 - If the device doesn't start after an upload:
   1. Unplug it and plug it back in.
   2. Put it into **bootloader / update mode**. Novation devices enter this
@@ -221,5 +312,4 @@ See [`analysis/NOTES.md`](analysis/NOTES.md). The most important ones:
 
 - The exact MCU part number and flash size, and where settings are stored. These
   decide whether free flash can be used for new code.
-- What the 6 ID bytes in the header mean, and whether the bootloader checks them.
 - The confirmed button combination for bootloader mode.

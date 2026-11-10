@@ -11,12 +11,15 @@ Goal: analyse Novation Launchkey Mini MK4 firmware (v1563) and add functions by 
 - `analysis/symbols.txt` – names we discover; rebuilt into the ELF by `make`
 - `analysis/NOTES.md` – findings log (keep updated)
 - `build/` – generated (gitignored): `.bin`, `.bin.json`, `.elf`, `.s`, `patched.syx`
-- `make` / `make verify` / `make disasm` / `make patched`
+- `make` / `make verify` / `make disasm` / `make patched` / `make inquiry` / `make upload` / `make restore`
+- Python runs through **uv** (`pyproject.toml`, `uv.lock`, `.python-version`): use `uv run python tools/...`, add deps with `uv add`.
+- `tools/send_syx.py` – MIDI upload with per-block ack handshake; `--inquiry`, `--list`, `--dry-run`.
+- `tools/bitmap.py` – list/export/patch OLED images; `assets/boot_logo.txt` -> `patches/010-boot-logo.patch`.
 
 ## Container format (verified: round-trip byte-identical, CRC matches)
 
 - Messages `F0 00 20 29 00 <cmd> … F7` (Novation ID).
-- `0x71` start: `02 13` + 6 id bytes `01 03 0c 1b 0d 35` (meaning unknown, copied verbatim on pack).
+- `0x71` start: `02 13` (checked by the app) + version `01 03 0c 1b 0d 35` = 1.3, build 1563, 1717.
 - `0x7C` info: `00` + same 6 bytes + size (8 nibbles) + CRC (8 nibbles).
 - `0x72` data: 37 7-bit bytes = MSB-first bitstream → 32 image bytes (+3 zero bits). Carries image[0x20:], last chunk 0xFF-padded.
 - `0x73` final data: image[0x00:0x20] (vector-table head sent last).
@@ -35,6 +38,14 @@ Goal: analyse Novation Launchkey Mini MK4 firmware (v1563) and add functions by 
   Raw-binary mode needs Ghidra (not installed). Re-run `make` and reopen after editing `symbols.txt`.
 - `xcrun llvm-objdump` (Xcode) disassembles; `xcrun clang -target thumbv7em-none-eabi -mcpu=cortex-m4` compiles.
   No ARM linker is installed yet (needed for C code caves).
+
+## Update protocol on the device (fw 1563, handler 0x08030E00)
+
+- The running app performs the update on the **MIDI** port; no bootloader mode needed.
+- Device acks: after the header (maybe after user confirmation, "Press to Upgrade") and after every 0x72 block it sends
+  `F0 00 20 29 00 72 <n lo,mid,hi 7-bit> F7` (n increments by one per block); final `F0 00 20 29 00 73 <status> 7F 7F F7`.
+- Max image size 0x38000. Device inquiry reply: family `41 01` = 25-key, `42 01` = 37-key; same firmware for both.
+- Connected test device: Launchkey Mini MK4 25, fw 1.3 build 1563 (2026-11-10).
 
 ## Rules
 

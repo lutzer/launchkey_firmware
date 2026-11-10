@@ -52,7 +52,9 @@ def build_elf(image: bytes, base: int, syms: dict) -> bytes:
     for name, (addr, is_func) in [("$t", (base, False))] + sorted(syms.items(), key=lambda kv: kv[1][0]):
         off = len(strtab)
         strtab += name.encode() + b"\0"
-        info = (0 << 4) | 0 if name == "$t" else (1 << 4) | (2 if is_func else 1)  # LOCAL NOTYPE / GLOBAL FUNC|OBJECT
+        # LOCAL NOTYPE for $t; GLOBAL FUNC, or GLOBAL NOTYPE for data (STT_OBJECT has no size here and
+        # would make objdump dump all following code as raw bytes)
+        info = 0 if name == "$t" else (1 << 4) | (2 if is_func else 0)
         symtab += struct.pack("<IIIBBH", off, addr, 0, info, 0, 1)
     nlocal = 2  # null + $t
     body = bytearray(text_off) + image
