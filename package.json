@@ -1,0 +1,16 @@
+{
+  "name": "launchkey-mini-mk4-firmware",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "make",
+    "verify": "make verify",
+    "patched": "make patched"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "rea-agents": "^6.8.0"
+  },
+  "private": true
+}

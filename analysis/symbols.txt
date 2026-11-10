@@ -1,0 +1,5 @@
+# Names discovered during analysis. Picked up by tools/mkelf.py (make) so every
+# disassembler/REA session sees them.
+#
+# <address> <name> [func|data]     (func is default; Thumb bit is added automatically)
+# Vector-table handlers (Reset_Handler, SysTick_Handler, IRQn_Handler, ...) are added automatically.
