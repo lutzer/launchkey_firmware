@@ -71,3 +71,20 @@
 0x0802112a relin_add_step_listener
 0x08027de4 str_append
 0x08027f2a fmt_version
+0x08016038 ctl_block
+0x08016048 ctl_unblock
+0x08016058 ctl_is_blocked
+0x08025712 menu_capture_ctl
+0x08025726 menu_release_ctl
+0x08013f6e midi_send3
+0x08013f8e midi_put
+0x0801402e midi_put_bytes
+0x08014092 midi_end_sysex
+0x0801867c disp_text
+0x08018694 disp_num
+0x08024f5e ui_popup_begin
+0x080144f2 io_add_listener_a
+0x080144f6 io_add_listener_b
+0x080144fa io_add_listener_c
+0x080144fe io_add_listener_d
+0x2000ee40 g_app_ports                   data

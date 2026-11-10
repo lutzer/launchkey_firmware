@@ -36,6 +36,15 @@ void cfw_init(void)
     paint_stack();
 }
 
+void probe_poll(void);
+
+/* Hook: replaces one `bl confstore_poll` in the main loop (0x0801048A). */
+void cfw_poll(void)
+{
+    confstore_poll();
+    probe_poll();
+}
+
 /* Hook: replaces `bl fmt_version` in ui_show_boot_screen (0x08016E42). Visible proof that cave code runs. */
 uint32_t cfw_boot_version(char *buf, uint32_t pos, uint32_t size, const uint32_t *ver)
 {

@@ -22,7 +22,7 @@ OBJDUMP  := xcrun llvm-objdump
 
 # cfw: C code linked into the free flash after the stock image (cfw/cfw.ld)
 ARMCC    := xcrun clang -target thumbv7em-none-eabi -mcpu=cortex-m4 -mthumb -mfloat-abi=soft
-ARMFLAGS := -std=c11 -Os -ffreestanding -fno-builtin -ffunction-sections -fdata-sections -Wall -Wextra -Werror
+ARMFLAGS := -std=c11 -Os -fomit-frame-pointer -ffreestanding -fno-builtin -ffunction-sections -fdata-sections -Wall -Wextra -Werror
 LLD      := ld.lld
 CFW_SRC  := $(wildcard cfw/*.c)
 CFW_OBJ  := $(patsubst cfw/%.c,build/cfw/%.o,$(CFW_SRC))
@@ -45,7 +45,7 @@ disasm: $(ELF)
 
 # Bitmap patches are generated from editable ASCII art in assets/
 patches/010-boot-logo.patch: assets/boot_logo.txt $(BIN) tools/bitmap.py
-	$(PY) tools/bitmap.py patch $(BIN) 0x27f $< -o $@ --title "Boot logo: CFW badge next to the Novation logo"
+	$(PY) tools/bitmap.py patch $(BIN) 0x27f $< -o $@ --title "Boot logo: small CF badge over the Novation logo"
 
 build/cfw/%.o: cfw/%.c $(wildcard cfw/*.h) | build
 	@mkdir -p build/cfw

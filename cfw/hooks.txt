@@ -7,3 +7,15 @@
 
 0x0801592c  bl  cfw_init          09f010ff   # was: bl feat_scale_init (end of feature init)
 0x08016e42  bl  cfw_boot_version  11f072f8   # was: bl fmt_version (boot screen "Ver: ...")
+0x0801048a  bl  cfw_poll          06f0b0fd   # was: bl confstore_poll (last of 5 calls in the main loop)
+
+# io_listener dispatchers -> cfw versions (filter pad events while Turing Machine mode owns them)
+0x0801b530  b.w cfw_io_dispatch_a f8b50446   # was: push {r3-r7,lr}; mov r4,r0
+0x0801b54c  b.w cfw_io_dispatch_b f8b50446
+0x0801b574  b.w cfw_io_dispatch_c 70b50446   # was: push {r4-r6,lr}; mov r4,r0
+0x0801b592  b.w cfw_io_dispatch_d f8b50446
+
+# encoder (relative input) dispatchers -> cfw versions (encoders 1..5 belong to Turing Machine mode)
+0x08020e48  b.w cfw_relin_dispatch_pos   2de9f041   # was: push.w {r4-r8,lr}
+0x08020e56  b.w cfw_relin_dispatch_hires 2de9f041
+0x08020e8a  b.w cfw_relin_dispatch_step  2de9f041

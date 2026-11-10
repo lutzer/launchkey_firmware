@@ -44,7 +44,27 @@
 - Relative input (encoders, inputrelative.cpp): three listener lists of max 4, notified with (id, value, delta):
   `relin_notify_pos` @0x08020E48 (list 0x2000F210, 2 users), `relin_notify_hires` @0x08020E56 (0x2000F224, 1 user),
   `relin_notify_step` @0x08020E8A (0x2000F238, 2 users). Registered at 0x08015FB6.. and 0x08016636...
-  [ ] which list drives Custom-mode CC output, encoder id numbering (needs a hardware test).
+- **Control ids (probe 2 on hardware, 2026-11-11):** pads 0..7 = top row (left->right), 8..15 = bottom row;
+  encoders 1..8 = 56..63 (0x38..0x3F); Shift = 25 (0x19), mirrored in feature param 0x3F (127/0).
+  io lists: A = press (value = 14-bit velocity; encoders: touch), C = release, B/D = pressure / value stream.
+  relin pos list = every tick with delta, step list = per detent (~2 ticks).
+- Encoder mode select = Shift + top-row pad: pad 7 -> 0x1E = 9 (Custom 4), pad 6 -> 8 (Custom 3). The feature
+  listener sees it (also 0x45 = 0 each time, meaning unknown). Custom 4 enc 1 sends CC 51 ch 1 by default.
+- Mode select with Shift: **top-row pads 0..7 -> encoder mode** (pad n -> 0x1E = n + 2, pad 7 = Custom 4 = 9),
+  **bottom-row pads 8..15 -> pad mode** (pad 15 -> 0x1D = 8 = pad Custom 4, pad 12 -> 5 = Custom 1).
+  0x1E/0x1D only *report* the mode: vetoing 0x1E with a feature filter does not stop the layout switch.
+- `ctl_block` is not usable to own controls across Shift: the Shift overlay captures/releases controls and
+  clears the block flags on release. cfw instead replaces the input dispatchers (io lists A..D 0x0801B530/
+  B54C/B574/B592, encoder lists 0x08020E48/E56/E8A, all start with a 4-byte push -> `b.w`) and decides per
+  event (press owns a control until its release). Verified on hardware (probe 3.3).
+- Port mapping: g_app_ports[0] = DAW port, g_app_ports[1] = MIDI port.
+- Stack: >= 1472 bytes of the painted area (0x2000F620..) never touched -> peak stack use ~1 KB.
+- `ctl_block(id)` @0x08016038 / `ctl_unblock` @0x08016048 / `ctl_is_blocked` @0x08016058: per-control flag
+  (table 0x2000C410) that makes the app listeners ignore the control; ui_menumgr uses it to capture controls
+  (`0x08025712` capture = block + 0x0801BD28(id, 1), `0x08025726` release = unblock + 0x0801BC92(id, 3)).
+- MIDI out: `midi_put(port, byte)` @0x08013F8E (USB-MIDI packetiser, SysEx of any length), `midi_send3(port,
+  status, d1, d2)` @0x08013F6E. App ports (objects on main's stack) at 0x2000EE40 / 0x2000EE44.
+- Main loop @0x0801041A (calls io poll 0x08014502, confstore_poll x5); all input listeners run there.
 
 ## Display (fw 1563)
 
