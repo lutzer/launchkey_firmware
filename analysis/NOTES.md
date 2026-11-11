@@ -145,6 +145,32 @@
   pushes values into the scale engine `g_scale` @0x2000ECE4 (scale.cpp: +0 enabled, +4 12-byte map,
   +0x10 mode, +0x14 root, +0x18 listeners).
 
+## Scale and Arp screens (fw 1563)
+
+- Button presses/releases go through `ui_press_dispatch` 0x080163E0 / `ui_release_dispatch` 0x0801645E, which
+  call every view's handler with the control id; each handler checks `ui_menu_owns(id, view)` 0x080257A6
+  (table of the capturing view per control). Views capture their controls in their activate callback.
+- Control ids: Scale 0x12, **Shift+Scale 0x42**, Arp 0x1E, **Shift+Arp 0x60** (own LED = latch state),
+  Chord Map button 0x13 / 0x43, encoder arrows **up 0x25 / down 0x24** (DAW CC 0x33 / 0x34; Shift overlay:
+  0x25 = previous page). Ids derived statically and from the user's description of stock behaviour.
+- Scale view = menu 0xF, state `g_scale_view` 0x2000F488 {u8 item, u8 shown, u8 pending_off, u8, u32 hold ms}.
+  Press of 0x12 **or 0x42**: scale off -> `scale_view_open` (scale on + view); on -> pending_off, and (view not
+  shown) hold timer 333 ms; release with pending_off -> view closed + scale off; timer expiry -> view shown.
+- Arp view = menu 1, state `g_arp_view` 0x20001094 (.data) {u32 prev pad layout, u8 type, ..., +8 shown,
+  +9 pending_off, +0xC hold ms, +0x10 layout ms}. 0x1E like Scale (hold also switches the pads to the arp
+  pattern layout after 333 ms); **0x60 toggles feature 0x58 (latch, 0/0x7F, volatile)** + popup "Latch"/"On|Off"
+  (`arp_popup_title(0xFF, 0x70)`, `popup_field_text(0xFF, 1, str)`). While shown, the view captures encoders
+  0x38..0x3F and both arrows (arrows otherwise unused there, LEDs off). Encoders: tempo (feat 3), swing (2),
+  0x56 rate, 0x59 gate, 0x55 type, 0x57 octave, 0x5C, rhythm (4). `arp_leds` 0x08023778 is also the arp
+  feature listener.
+- View open (stock pattern): `ui_close_views` (all close callbacks), shown = 1, `ui_view_changed`,
+  `ui_popup_begin` (activate callbacks re-capture controls and redraw LEDs). Close: `*_view_close` + popup_begin.
+- cfw (`cfw/shift_views.c`): hooks the scale/arp press calls in the dispatcher and the entry of `arp_leds`.
+  0x42 / 0x60 open the view without touching scale on/off, arp on/off or latch (press again: close);
+  in the Arp view up/down set the latch with the stock popup, and the arrow of the current setting is lit.
+- Chord Map performance-modifier view = menu 7 (state 0x200010AC): pads 5-7 / 13-15 pick Arp Up/Down,
+  Inversion Up/Down, Bass + Chord, Chord Split; control 0x10 toggles their latch ("Latch ON/OFF").
+
 ## Turing Machine mode (cfw, pad mode Custom 4)
 
 - `cfw/tm_mode.c` + `cfw/tm_core.c`. Top pads = register bits 0..7 (bit 0 newest = pad 1, green; press flips),

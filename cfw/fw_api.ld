@@ -68,3 +68,19 @@ PROVIDE(ctl_is_blocked     = 0x08016058 | 1);
 PROVIDE(relin_io_listener_a = 0x08020E97);
 PROVIDE(relin_io_listener_c = 0x08020EBB);
 PROVIDE(relin_io_listener_d = 0x08020EDB);
+
+/* UI views (menus): ownership, close/refresh broadcasts, Scale and Arp screens (cfw/shift_views.c) */
+PROVIDE(ui_menu_owns        = 0x080257A6 | 1);
+PROVIDE(ui_close_views      = 0x08024EF6 | 1);
+PROVIDE(ui_view_changed     = 0x0801874E | 1);
+PROVIDE(popup_field_text    = 0x080186CC | 1);
+PROVIDE(feat_get_value      = 0x0802B394 | 1);
+PROVIDE(feat_set_value_volatile = 0x0802B354 | 1);
+PROVIDE(scale_press         = 0x0802168C | 1);
+PROVIDE(scale_view_close    = 0x08021656 | 1);
+PROVIDE(g_scale_view        = 0x2000F488);
+PROVIDE(arp_press           = 0x080238CE | 1);
+PROVIDE(arp_view_close      = 0x0802388C | 1);
+PROVIDE(arp_led_set         = 0x0802374C | 1);
+PROVIDE(arp_popup_title     = 0x080236C0 | 1);
+PROVIDE(g_arp_view          = 0x20001094);

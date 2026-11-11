@@ -120,4 +120,47 @@ void clock_midi_start(void);
 void clock_midi_continue(void);
 void clock_midi_stop(void);
 
+/* Feature param value get / set (group 0xD0; the volatile setter does not mark the value persistent). */
+uint32_t feat_get_value(uint32_t id);
+void feat_set_value_volatile(uint32_t id, uint32_t value);
+
+/* UI views ("menus", ui_menumgr): a view owns the controls it captured. ui_close_views runs every
+ * view's close callback, ui_view_changed tells the display a view opened (stock open path:
+ * close_views, set shown, view_changed, ui_popup_begin). Popup: arp_popup_title(key, string id)
+ * opens the popup with a title, popup_field_text(key, field, str) sets its value line. */
+#define UI_MENU_ARP    1
+#define UI_MENU_SCALE  0xF
+uint32_t ui_menu_owns(uint32_t id, uint32_t menu);
+void ui_close_views(void);
+void ui_view_changed(void);
+void popup_field_text(uint32_t key, uint32_t field, const char *str);
+
+/* Scale view (menu 0xF, buttons Scale 0x12 / Shift+Scale 0x42): press handler, close, state. */
+typedef struct {
+    uint8_t  item;          /* highlighted encoder item */
+    uint8_t  shown;
+    uint8_t  pending_off;   /* release turns the scale off */
+    uint8_t  pad;
+    uint32_t hold_timer;    /* ms until a held press opens the view */
+} scale_view_t;
+extern volatile scale_view_t g_scale_view;
+void scale_press(uint32_t id);
+void scale_view_close(void);
+
+/* Arp view (menu 1, buttons Arp 0x1E / Shift+Arp 0x60 = latch toggle). */
+typedef struct {
+    uint32_t prev_layout;   /* pad layout before the hold switched to the arp pattern layout */
+    uint8_t  prev_type, pad[3];
+    uint8_t  shown;
+    uint8_t  pending_off;   /* release turns the arp off */
+    uint8_t  pad2[2];
+    uint32_t hold_timer;    /* ms until a held press opens the view */
+    uint32_t layout_timer;  /* ms until a held press switches the pads to the arp pattern layout */
+} arp_view_t;
+extern volatile arp_view_t g_arp_view;
+void arp_press(uint32_t id);
+void arp_view_close(void);
+void arp_led_set(uint32_t id, uint32_t rgb);     /* only if the arp view owns the control */
+void arp_popup_title(uint32_t key, uint32_t str_id);
+
 #endif

@@ -6,6 +6,9 @@ firmware version 1.3 build 1563. It adds:
 - **Turing Machine mode** – a generative sequencer inspired by the Music Thing Turing Machine, on pad mode
   Custom 4
 - **Scale memory** – the scale (on/off, type, root note, mode) is restored at power-on
+- **Settings screens without switching** – Shift + Scale / Shift + Arp open the Scale / Arp settings
+  (press again to close) and leave Scale, Arp and Latch as they are. On the Arp screen the encoder arrows set
+  Latch: **up = on, down = off**, and the arrow of the current setting is lit
 - A **CFW badge** on the boot logo, and the version shown at boot gets a `+cfw` suffix
 
 > ⚠️ **Use at your own risk.** Flashing modified firmware can leave the device unusable and may void your

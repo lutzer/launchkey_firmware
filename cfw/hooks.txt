@@ -36,3 +36,8 @@
 0x08020e48  b.w cfw_relin_dispatch_pos   2de9f041   # was: push.w {r4-r8,lr}
 0x08020e56  b.w cfw_relin_dispatch_hires 2de9f041
 0x08020e8a  b.w cfw_relin_dispatch_step  2de9f041
+
+# Shift + Scale / Shift + Arp open the settings screens; arrows set the latch (cfw/shift_views.c)
+0x0801640e  bl  cfw_scale_press   0bf03df9   # was: bl scale_press (press dispatcher 0x080163E0)
+0x08016444  bl  cfw_arp_press     0df043fa   # was: bl arp_press
+0x08023778  b.w cfw_arp_leds      18b5dff8   # was: push {r3,r4,lr}; ldr.w r0,[pc,#0x5f4] (arp LED refresh)

@@ -113,3 +113,33 @@
 0x0802b43a settings_count_pads
 0x0801d8cc device_key_count
 0x08031ab0 g_settings_items              data
+
+# --- UI views: Scale / Arp screens, press dispatch (see NOTES.md "Scale and Arp screens") ---
+0x080163e0 ui_press_dispatch
+0x0801645e ui_release_dispatch
+0x080257a6 ui_menu_owns
+0x08024ef6 ui_close_views
+0x0801874e ui_view_changed
+0x080186cc popup_field_text
+0x0802b394 feat_get_value
+0x0802168c scale_press
+0x080216bc scale_release
+0x080216f8 scale_encoder
+0x08021634 scale_view_open
+0x08021656 scale_view_close
+0x0802153c scale_leds
+0x080217b2 scale_timer
+0x2000f488 g_scale_view                  data
+0x080238ce arp_press
+0x08023964 arp_release
+0x080239e8 arp_encoder
+0x08023b48 arp_encoder_hires
+0x0802386c arp_view_open
+0x0802388c arp_view_close
+0x08023778 arp_leds
+0x0802374c arp_led_set
+0x080236c0 arp_popup_title
+0x08023cf8 arp_timer
+0x20001094 g_arp_view                    data
+0x08024c24 chordmap_press
+0x08024d0c chordmap_release

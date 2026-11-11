@@ -21,3 +21,6 @@
 0x08020e48  2de9f041  16f03abb   # b.w cfw_relin_dispatch_pos  was: push.w {r4-r8,lr}
 0x08020e56  2de9f041  16f053bb   # b.w cfw_relin_dispatch_hires
 0x08020e8a  2de9f041  16f059bb   # b.w cfw_relin_dispatch_step
+0x0801640e  0bf03df9  21f003f9   # bl cfw_scale_press  was: bl scale_press (press dispatcher 0x080163E0)
+0x08016444  0df043fa  21f038f9   # bl cfw_arp_press  was: bl arp_press
+0x08023778  18b5dff8  13f073bf   # b.w cfw_arp_leds  was: push {r3,r4,lr}; ldr.w r0,[pc,#0x5f4] (arp LED refresh)
