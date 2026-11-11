@@ -57,6 +57,7 @@ Turning an encoder shows its value on the display.
   the last change). The running pattern and play/pause are not saved.
 - **Shift still works:** Shift + pads selects pad and encoder modes as usual, and menus (Settings, Scale, Arp)
   get the encoders while they are open. If a Scale or Arp screen keeps the encoders, select pad Custom 4 again.
+- **Shift + turn an encoder** shows the current value of that Turing Machine parameter without changing it.
 
 ---
 

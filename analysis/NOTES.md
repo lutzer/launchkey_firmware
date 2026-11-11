@@ -165,6 +165,7 @@
 - Bottom pads 8..15 = scale notes 1..8 (pad 15 only for 8-note scales; note 8 stored inverted in 0x62). Hold: while
   held both rows show a frozen copy of the register while it keeps running; a pad press flips the bit
   it showed, at position (pad + steps since freezing) mod length.
+- Shift + encoder: the mode keeps the encoders (io events -> TM_ENC_ONLY, relin consumed) and only shows the value.
 - Menus: controls captured by a menu (ctl_is_blocked) go to the menu - except after (re)selecting pad Custom 4:
   Scale/Arp screens keep encoders captured after leaving them, so selecting the mode sets a priority flag
   that wins over captures until any other button (not Shift/pads/encoders/the four mode buttons) is pressed.

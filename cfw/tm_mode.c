@@ -568,7 +568,12 @@ int tm_io_event(int list, uint32_t id, uint32_t value)
     }
     uint32_t bit = 1u << slot;
     if (list == 0) {            /* the press decides who owns the control until its release */
-        int take = st.active && !st.shift &&
+        int is_enc = id >= ENC_FIRST && id < ENC_FIRST + ENC_COUNT;
+        int take;
+        if (st.shift)           /* Shift + encoder = show value; the Shift overlay's capture doesn't count */
+            take = st.active && is_enc;
+        else
+            take = st.active &&
                    !(slot >= PAD_COUNT + ENC_COUNT ? menu_owns_button(id) : menu_owns(id));
         st.owned = take ? st.owned | bit : st.owned & ~bit;
         if (take && id < PAD_COUNT)
@@ -587,12 +592,29 @@ int tm_io_event(int list, uint32_t id, uint32_t value)
 }
 
 /* list: 0 = pos (every tick), 1 = hires, 2 = step (per detent). Returns 1 if consumed. */
+/* Popup with the value of encoder enc (0..7). */
+static void show_enc(int enc)
+{
+    if (enc == ENC_ROTATE) {
+        char v[20], *p = put_num(put_str(v, "Step "), st.rot + 1u);
+        *p = 0;
+        popup("Rotate", v);
+    } else {
+        show_param(enc == ENC_VEL ? P_VEL : enc);
+    }
+}
+
 int tm_enc_event(int list, uint32_t id, int32_t delta)
 {
     delta = (int16_t)delta;     /* the encoder module passes deltas as u16 (-1 = 0xFFFF) */
-    if (!st.active || st.shift || id < ENC_FIRST || id >= ENC_FIRST + ENC_COUNT || menu_owns(id))
+    if (!st.active || id < ENC_FIRST || id >= ENC_FIRST + ENC_COUNT || (!st.shift && menu_owns(id)))
         return 0;
     int enc = (int)(id - ENC_FIRST);    /* == param index P_PROB..P_HEADS */
+    if (st.shift) {             /* Shift + turn: show the value without changing it */
+        if (list == 2)
+            show_enc(enc);
+        return 1;
+    }
     if (enc == ENC_VEL) {
         if (list != 2)
             return 1;
@@ -609,9 +631,7 @@ int tm_enc_event(int list, uint32_t id, int32_t delta)
         tm_rewind(&tm, n);
         st.rot = (uint8_t)(((st.rot + delta) % tm.len + tm.len) % tm.len);
         draw_register();
-        char v[20], *p = put_num(put_str(v, "Step "), st.rot + 1u);
-        *p = 0;
-        popup("Rotate", v);
+        show_enc(ENC_ROTATE);
         return 1;
     }
     if (enc == P_PROB) {
