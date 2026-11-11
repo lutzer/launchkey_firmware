@@ -60,6 +60,12 @@ typedef struct {
 } io_list_t;
 extern io_list_t g_io_list_a, g_io_list_b, g_io_list_c, g_io_list_d;
 
+/* The encoder module (inputrelative.cpp) derives relin events from raw encoder io events
+ * through these io listeners (registered on lists A, C, D). */
+void relin_io_listener_a(uint32_t id, uint32_t value);
+void relin_io_listener_c(uint32_t id);
+void relin_io_listener_d(uint32_t id, uint32_t value);
+
 /* Encoders: (encoder id, accumulated value, delta). Lists use io_list_t (max 4 entries);
  * cfw replaces the dispatchers (0x08020E48 pos, 0x08020E56 hires, 0x08020E8A step). */
 typedef void (*relin_listener_fn)(uint32_t id, uint32_t value, int32_t delta);
@@ -80,6 +86,9 @@ void midi_send3(midi_port_t *port, uint32_t status, uint32_t d1, uint32_t d2);
  * still see it. */
 void ctl_block(uint32_t id);
 void ctl_unblock(uint32_t id);
+/* Also set while a menu (Settings, Shift overlay, ...) has captured the control
+ * (ui_menumgr capture @0x08025712). */
+uint32_t ctl_is_blocked(uint32_t id);
 
 /* LED override layer (drawn instead of the pad mode's colours while active):
  * led_override(id, 0 static / 1 flash / 2 pulse) turns it on, led_override(id, 3) off.
@@ -90,5 +99,10 @@ void ctl_unblock(uint32_t id);
 #define LED_RELEASE 3
 void led_override_color(uint32_t id, uint32_t rgb);
 void led_override(uint32_t id, uint32_t mode);
+
+/* Clock: 24 PPQN tick counter, advanced by clock_poll (0x08013C60) in the main loop from the
+ * internal tempo (period in us at 0x20000114) or counted external MIDI clocks. Poll it from
+ * the main loop and step on the difference, like the MIDI Clock Out sender (0x08014492). */
+extern volatile uint32_t g_clock_ticks;
 
 #endif

@@ -1,6 +1,8 @@
 #include "tm_core.h"
 
-const uint8_t tm_div_ticks[TM_NUM_DIVS] = {3, 4, 6, 8, 12, 16, 24, 48, 96};
+const uint8_t tm_head_spacing[TM_NUM_HEADS] = {1, 2, 3, 4, 6, 8, 16};
+
+const uint16_t tm_div_ticks[TM_NUM_DIVS] = {384, 192, 96, 48, 24, 16, 12, 8, 6, 4, 3};
 
 static uint32_t xorshift32(uint32_t *s)
 {
@@ -17,10 +19,12 @@ void tm_init(tm_t *tm, uint32_t seed)
     tm->reg = (uint16_t)xorshift32(&tm->rng);
     tm->len = 8;
     tm->prob = 96;
-    tm->div = 2;           /* 1/16 */
+    tm->div = TM_DIV_DEFAULT;
     tm->octave = 3;
     tm->range = 8;
     tm->mask = 0xFF;
+    tm->gate = 50;
+    tm->heads = 0;          /* Full */
 }
 
 int tm_step(tm_t *tm)
@@ -32,6 +36,34 @@ int tm_step(tm_t *tm)
     return in;
 }
 
+int tm_gate(const tm_t *tm)
+{
+    int s = tm_head_spacing[tm->heads];
+    for (int pos = 0; pos < tm->len; pos += s)
+        if (tm->reg >> pos & 1)
+            return 1;
+    return 0;
+}
+
+uint16_t tm_gate_ticks(const tm_t *tm)
+{
+    uint32_t step = tm_div_ticks[tm->div];
+    uint32_t t = step * tm->gate / 100;
+    if (t < 1)
+        t = 1;
+    if (t > step - 1)
+        t = step - 1;
+    return (uint16_t)t;
+}
+
+int tm_flip(tm_t *tm, int i)
+{
+    if (i < 0 || i >= tm->len)
+        return 0;
+    tm->reg ^= (uint16_t)(1u << i);
+    return 1;
+}
+
 int tm_scale_size(const uint8_t semis[12])
 {
     int n = 0;
@@ -40,28 +72,45 @@ int tm_scale_size(const uint8_t semis[12])
     return n;
 }
 
-int tm_playable(const uint8_t semis[12], int scale_on, uint8_t mask, uint8_t out[12])
+/* Note for the current register value. The value picks a note from the full scale
+ * (range counts all scale notes); a disabled note is replaced by the closest enabled
+ * one in pitch (tie -> lower). */
+int tm_note(const tm_t *tm, int root, const uint8_t semis[12], int scale_on)
 {
-    int n = 0, degree = 0;
+    uint8_t notes[12];
+    uint16_t enabled = 0;
+    int n = 0;
     for (int i = 0; i < 12; i++) {
-        if (!scale_on) {
-            out[n++] = (uint8_t)i;
-        } else if (semis[i]) {
-            if (degree < TM_PADS && (mask >> degree & 1))
-                out[n++] = (uint8_t)i;
-            degree++;
-        }
+        if (scale_on && !semis[i])
+            continue;
+        if (!scale_on || (n < TM_PADS && (tm->mask >> n & 1)))
+            enabled |= (uint16_t)(1u << n);
+        notes[n++] = (uint8_t)i;
     }
-    return n;
-}
-
-int tm_note(const tm_t *tm, int root, const uint8_t *playable, int count)
-{
-    if (count == 0)
+    if (!enabled)
         return -1;
+
     int idx = (tm->reg & 0xFF) * tm->range / 256;
-    int note = 12 * (tm->octave + idx / count) + root + playable[idx % count];
+    int target = 12 * (idx / n) + notes[idx % n];   /* semitones above root + base octave */
+    int best = target;
+    if (!(enabled >> (idx % n) & 1)) {
+        int best_dist = 1000;
+        for (int oct = idx / n - 1; oct <= idx / n + 1; oct++)
+            for (int j = 0; j < n; j++) {
+                if (!(enabled >> j & 1))
+                    continue;
+                int p = 12 * oct + notes[j];
+                int dist = p > target ? p - target : target - p;
+                if (dist < best_dist || (dist == best_dist && p < best)) {
+                    best = p;
+                    best_dist = dist;
+                }
+            }
+    }
+    int note = 12 * tm->octave + root + best;
     while (note > 127)
         note -= 12;
+    while (note < 0)
+        note += 12;
     return note;
 }

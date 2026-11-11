@@ -50,3 +50,12 @@ PROVIDE(feat_add_filter    = 0x08016DF2 | 1);
 PROVIDE(g_relin_list_pos   = 0x2000F210);
 PROVIDE(g_relin_list_hires = 0x2000F224);
 PROVIDE(g_relin_list_step  = 0x2000F238);
+
+/* clock: free-running 24 PPQN tick counter (internal tempo or external MIDI clock) */
+PROVIDE(g_clock_ticks      = 0x20000124);
+PROVIDE(ctl_is_blocked     = 0x08016058 | 1);
+
+/* inputrelative's io listeners (turn raw encoder events into relin events) */
+PROVIDE(relin_io_listener_a = 0x08020E97);
+PROVIDE(relin_io_listener_c = 0x08020EBB);
+PROVIDE(relin_io_listener_d = 0x08020EDB);

@@ -58,6 +58,17 @@
   B54C/B574/B592, encoder lists 0x08020E48/E56/E8A, all start with a 4-byte push -> `b.w`) and decides per
   event (press owns a control until its release). Verified on hardware (probe 3.3).
 - Port mapping: g_app_ports[0] = DAW port, g_app_ports[1] = MIDI port.
+- **Keys Channel = feature param 0x64** (0-based). Encoder relin events pass value and delta as u16
+  (delta -1 = 0xFFFF) -> sign-extend. Raw encoder io events (A/C/D) must still reach inputrelative's io
+  listeners (0x08020E97 / EBB / EDB) or no relin events are generated.
+- Feature flags at runtime (pad Custom 4 selected, 2026-11-11): defined 02-07 1b-1f 3c-3f 44-47 49-4f 53-59 5c
+  64-77 79-7d; persistent 3c 3d 3e 4a 4f 64-77 79; free 00 01 08-1a 20-3b 40-43 48 50-52 5a 5b 5d-63 78 7e 7f.
+- **Clock:** `clock_poll` @0x08013C60 (main loop, before input) keeps state at 0x20000104: +0 running, +2 external
+  sync, +8 pending external F8s (`clock_ext_tick` @0x08013C50 adds one per received F8), +0xC accumulator,
+  +0x10 tick period in us (clamped 1000..1000000), **+0x20 = 24 PPQN tick counter `g_clock_ticks` 0x20000124**.
+  Each ms the accumulator gains 1000 us; reaching the period increments the counter (internal), or each
+  pending F8 does (external). Free-running. MIDI Clock Out (`clock_out_poll` @0x08014492, main loop) sends
+  one F8 per counter step -> cfw steps from the same counter in cfw_poll.
 - Stack: >= 1472 bytes of the painted area (0x2000F620..) never touched -> peak stack use ~1 KB.
 - `ctl_block(id)` @0x08016038 / `ctl_unblock` @0x08016048 / `ctl_is_blocked` @0x08016058: per-control flag
   (table 0x2000C410) that makes the app listeners ignore the control; ui_menumgr uses it to capture controls
@@ -103,6 +114,18 @@
 - `feat_scale_init` @0x0801F750 defines them (flags=1, default off / Major / C / 0); `feat_scale_filter` @0x0801F6B0
   pushes values into the scale engine `g_scale` @0x2000ECE4 (scale.cpp: +0 enabled, +4 12-byte map,
   +0x10 mode, +0x14 root, +0x18 listeners).
+
+## Turing Machine mode (cfw, pad mode Custom 4)
+
+- `cfw/tm_mode.c` + `cfw/tm_core.c`. Top pads = register bits 0..7 (bit 0 newest = pad 1, green; press flips),
+  bottom pads = scale notes (white; press toggles), encoders 1..7 = probability, length, rate (4/1..1/32,
+  CW = faster), octave, range, gate, trigger heads. A step plays a note when any trigger head reads a 1:
+  heads at positions 0, s, 2s, ... below the loop length, s = 1 (Full, default) / 2 / 3 / 4 / 6 / 8 / 16
+  (1/16 = first position only; a loop shorter than s also leaves only position 0). The note lasts gate % of
+  the step (5..95 %) and is always released before the next step (no ties). Encoder 8 follows the encoder mode.
+- Pitch: register value (bits 0..7) picks a note from the full scale (range counts all scale notes); a note
+  disabled on the bottom pads is replaced by the closest enabled note in pitch (tie -> lower). All off = rest.
+- Notes: USB MIDI port (g_app_ports[1]), Keys Channel (0x64), velocity 100. Not yet persistent.
 
 ## Patches
 

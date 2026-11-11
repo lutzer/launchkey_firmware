@@ -28,6 +28,12 @@ def decode(d):
         return f"stack free {d[5] | d[6] << 7} bytes"
     if t == 5:
         return "MODE " + ("TAKEOVER ON (pad Custom 4)" if d[5] else "takeover off")
+    if t == 7:
+        f = d[5:5 + 128]
+        ids = lambda m: " ".join(f"{i:02x}" for i in range(128) if f[i] & m == m)
+        free = " ".join(f"{i:02x}" for i in range(128) if not f[i] & 1)
+        return (f"feature flags\n  defined:    {ids(1)}\n  persistent: {ids(3)}\n"
+                f"  14-bit:     {ids(5)}\n  free:       {free}")
     if t == 6:
         return f"VETO encoder mode change {d[5]} -> {d[6]} (kept {d[5]})"
     return "unknown " + bytes(d).hex(" ")

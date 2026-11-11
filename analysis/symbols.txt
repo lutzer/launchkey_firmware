@@ -88,3 +88,11 @@
 0x080144fa io_add_listener_c
 0x080144fe io_add_listener_d
 0x2000ee40 g_app_ports                   data
+
+# --- clock ---
+0x08013c60 clock_poll
+0x08013bc6 clock_tick_counter_ptr
+0x08013c50 clock_ext_tick
+0x08014492 clock_out_poll
+0x20000104 g_clock                       data
+0x20000124 g_clock_ticks                 data
