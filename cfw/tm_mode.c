@@ -3,20 +3,21 @@
  * Active while feature param 0x1D (pad mode) = 8 and Shift is up:
  *   top pads 0..7      register bits (newest at pad 1), green; dark beyond the loop length.
  *                      While Function is held both rows show bits 1..16 and a press flips the bit.
- *   bottom pads 8..14  scale notes (pad 9 = root, ...), white; press toggles (Scale on only);
- *                      the 8th note of 8-note scales is always on; pad 15 is unused (dark)
+ *   bottom pads 8..15  scale notes (pad 9 = root, ...), white; press toggles (Scale on only);
+ *                      pads beyond the scale size are dark, all eight lit with Scale off
  *   Function (17)      hold: while held the top row is frozen on screen (the register keeps
  *                      running) and top-pad presses flip the bit they showed
  *   > (16)             play/pause (above Function); the mode starts paused
  *   up/down (34/35)    octave
- *   encoders 1..7      probability, length, rate, range, gate length, trigger heads, rotate
+ *   encoders 1..8      probability, length, rate, range, gate length, trigger heads, rotate,
+ *                      velocity depth (velocity from register bits 4..10, see tm_velocity)
  *                      (rotate shifts the loop without flipping bits, i.e. moves the step that
  *                      MIDI Start returns to)
  * MIDI transport: Start = back to the first step, which plays on the next clock tick (the
  * downbeat), Continue = resume, Stop = pause.
  * Parameters and the note mask are saved as persistent feature params (see PARAM_*).
- * A step plays a note when any trigger head (register positions 0, s, 2s, ... within the loop;
- * Full = every position, 1/16 = first only) reads a 1; every note lasts the gate length and
+ * A step plays a note depending on the trigger mode (tm_heads: every step, OR / AND / XOR of
+ * delayed register bits, ~88 % .. ~12 % dense); every note lasts the gate length and
  * is released before the next step (no ties).
  * Steps on the 24 PPQN clock counter (g_clock_ticks), notes go out on the MIDI port, which the
  * stock firmware chains to the DIN/TRS output (port link +0x18, set in main).
@@ -36,17 +37,15 @@
 #define FEAT_PAD_MODE     0x1D
 #define FEAT_SHIFT        0x3F
 #define CTL_SHIFT         25
-#define FEAT_KEYS_CHANNEL 0x64        /* Settings > Keys Channel, 0-based */
 #define PAD_CUSTOM4       8
 
 #define PAD_COUNT         16
 #define PAD_ROW           8
-#define NOTE_PADS         7           /* bottom pads 8..14 */
-#define PAD_UNUSED        15
-#define MASK_ALWAYS_ON    0x80        /* 8th scale note has no pad */
+#define NOTE8_BIT         0x80        /* 8th scale note (bottom pad 8, 8-note scales only) */
 #define ENC_FIRST         56          /* encoder 1 */
-#define ENC_COUNT         7
+#define ENC_COUNT         8
 #define ENC_ROTATE        6           /* encoder 7; encoders 1..6 = params P_PROB..P_HEADS */
+#define ENC_VEL           7           /* encoder 8 */
 /* Buttons next to the pads (ids from the DAW-mode CC map at 0x0801C180: CC 104..107). */
 #define BTN_PLAY          16          /* ">" (scene launch), above Function */
 #define BTN_HOLD          17          /* Function */
@@ -54,7 +53,6 @@
 #define BTN_OCT_DOWN      35
 
 #define MIDI_PORT         1           /* g_app_ports[1] = USB MIDI port (+ DIN via link) */
-#define VELOCITY          100
 
 #define GREEN_ON          0x00FF00
 #define GREEN_DIM         0x001800
@@ -63,14 +61,17 @@
 #define LED_OFF           0x000000
 
 /* Persistent feature params (free ids >= 0x40: ids 0x20..0x3F double as 14-bit LSBs). */
-enum { P_PROB, P_LEN, P_RATE, P_RANGE, P_GATE, P_HEADS, P_OCT, P_MASK, P_COUNT };
-static const uint8_t param_id[P_COUNT] = {0x50, 0x51, 0x52, 0x5B, 0x5D, 0x5E, 0x5A, 0x5F};
+/* Feature values are 7 bits: P_MASK holds notes 1..7, P_NOTE8_OFF the 8th note inverted (records
+ * from before it existed read 0 = on, as the 8th note used to be always on). */
+enum { P_PROB, P_LEN, P_RATE, P_RANGE, P_GATE, P_HEADS, P_OCT, P_MASK, P_CHAN, P_NOTE8_OFF, P_VEL, P_COUNT };
+static const uint8_t param_id[P_COUNT] = {0x50, 0x51, 0x52, 0x5B, 0x5D, 0x5E, 0x5A, 0x5F, TM_CHANNEL_PARAM, 0x62, 0x63};
 #define PARAM_MAGIC_ID    0x60        /* != PARAM_MAGIC: stored values are not ours -> defaults */
 #define PARAM_MAGIC       0x5A
 #define PARAM_PERSISTENT  3           /* definition flags: defined | persistent */
 
 
 static tm_t tm;
+static uint8_t midi_channel;   /* Settings > Turing Channel, 0-based */
 static struct {
     uint8_t active, shift;
     uint16_t ticks;          /* clock ticks since the current step started */
@@ -134,17 +135,20 @@ static void feat_set(uint32_t id, uint32_t value, uint32_t flags)
     confsys_set_param(FW_GROUP_FEATURE, id, &p, 0);
 }
 
-static uint8_t *param_field(int p)
+static uint32_t param_value(int p)
 {
     switch (p) {
-    case P_PROB:  return &tm.prob;
-    case P_LEN:   return &tm.len;
-    case P_RATE:  return &tm.div;
-    case P_OCT:   return &tm.octave;
-    case P_RANGE: return &tm.range;
-    case P_GATE:  return &tm.gate;
-    case P_HEADS: return &tm.heads;
-    default:      return &tm.mask;
+    case P_PROB:  return tm.prob;
+    case P_LEN:   return tm.len;
+    case P_RATE:  return tm.div;
+    case P_OCT:   return tm.octave;
+    case P_RANGE: return tm.range;
+    case P_GATE:  return tm.gate;
+    case P_HEADS: return tm.heads;
+    case P_CHAN:  return midi_channel;
+    case P_VEL:   return tm.vel;
+    case P_MASK:  return tm.mask & 0x7F;
+    default:      return !(tm.mask & NOTE8_BIT);
     }
 }
 
@@ -160,13 +164,16 @@ static void param_apply(int p, uint32_t v)
     case P_RANGE: tm.range = (uint8_t)clamp((int)v, TM_RANGE_MIN, TM_RANGE_MAX); break;
     case P_GATE:  tm.gate = (uint8_t)clamp((int)v, TM_GATE_MIN, TM_GATE_MAX); break;
     case P_HEADS: tm.heads = (uint8_t)clamp((int)v, 0, TM_NUM_HEADS - 1); break;
-    case P_MASK:  tm.mask = (uint8_t)((v & 0x7F) | MASK_ALWAYS_ON); break;
+    case P_MASK:  tm.mask = (uint8_t)((v & 0x7F) | (tm.mask & NOTE8_BIT)); break;
+    case P_NOTE8_OFF: tm.mask = (uint8_t)((tm.mask & 0x7F) | (v ? 0 : NOTE8_BIT)); break;
+    case P_CHAN:  midi_channel = (uint8_t)(v & 0x0F); break;
+    case P_VEL:   tm.vel = (uint8_t)clamp((int)v, 0, TM_VEL_MAX); break;
     }
 }
 
 static void param_save(int p)
 {
-    feat_set(param_id[p], *param_field(p) & 0x7F, 0);
+    feat_set(param_id[p], param_value(p), 0);
 }
 
 /* Stored values valid -> load them; otherwise (first boot, old settings record) store ours. */
@@ -208,8 +215,8 @@ static void note_on(int note)
 {
     if (note < 0 || !g_app_ports[MIDI_PORT])
         return;
-    st.channel = (uint8_t)(feat_get(FEAT_KEYS_CHANNEL) & 0x0F);
-    midi_send3(g_app_ports[MIDI_PORT], 0x90 | st.channel, (uint32_t)note, VELOCITY);
+    st.channel = midi_channel;
+    midi_send3(g_app_ports[MIDI_PORT], 0x90 | st.channel, (uint32_t)note, (uint32_t)tm_velocity(&tm));
     st.note = (int8_t)note;
 }
 
@@ -248,7 +255,7 @@ static void draw_notes(void)
         return;
     int scale_on = feat_get(FEAT_SCALE_ON) != 0;
     int size = tm_scale_size(scale_semis());
-    for (uint32_t i = 0; i < NOTE_PADS; i++) {
+    for (uint32_t i = 0; i < PAD_ROW; i++) {
         uint32_t rgb;
         if (!scale_on)
             rgb = WHITE_ON;
@@ -258,7 +265,6 @@ static void draw_notes(void)
             rgb = (tm.mask >> i & 1) ? WHITE_ON : WHITE_DIM;
         led(PAD_ROW + i, rgb);
     }
-    led(PAD_UNUSED, LED_OFF);
 }
 
 static void draw_buttons(void)
@@ -290,6 +296,20 @@ static void popup(const char *title, const char *value)
 }
 
 /* p = P_PROB..P_OCT (encoders 1..6 = P_PROB..P_HEADS) */
+/* Mode popup: title + short encoder labels in the stock 8-field overview layout (template 4:
+ * field 0 = title, fields 1..4 / 5..8 = encoders 1..4 / 5..8, 32 px each). */
+#define TEMPLATE_OVERVIEW 4
+static const char *const enc_labels[8] = {"Prob", "Len", "Rate", "Rng", "Gte", "Hds", "Rot", "Vel"};
+
+static void popup_overview(void)
+{
+    ui_popup_begin();
+    disp_set_screen(1, TEMPLATE_OVERVIEW);
+    disp_text(1, 0, "Turing Machine");
+    for (uint32_t i = 0; i < 8; i++)
+        disp_text(1, 1 + i, enc_labels[i]);
+}
+
 static void show_param(int param)
 {
     char v[20], *p = v;
@@ -326,12 +346,16 @@ static void show_param(int param)
         title = "Gate";
         p = put_str(put_num(p, tm.gate), "%");
         break;
+    case P_VEL:
+        title = "Velocity";
+        if (tm.vel == 0)
+            p = put_str(p, "Fixed");
+        else
+            p = put_str(put_num(put_str(p, "Depth "), tm.vel), "%");
+        break;
     case P_HEADS:
         title = "Trig Heads";
-        if (tm.heads == 0)
-            p = put_str(p, "Full");
-        else
-            p = put_num(put_str(p, "1/"), tm_head_spacing[tm.heads]);
+        p = put_str(p, tm_heads[tm.heads].name);
         break;
     }
     *p = 0;
@@ -487,7 +511,7 @@ static void pad_pressed(uint32_t id)
             draw_register();
         return;
     }
-    if (id < PAD_ROW || id == PAD_UNUSED)
+    if (id < PAD_ROW)
         return;
     if (!feat_get(FEAT_SCALE_ON))
         return;
@@ -495,7 +519,7 @@ static void pad_pressed(uint32_t id)
     if ((int)i >= tm_scale_size(scale_semis()))
         return;
     tm.mask ^= (uint8_t)(1u << i);
-    param_save(P_MASK);
+    param_save(i == 7 ? P_NOTE8_OFF : P_MASK);
     draw_notes();
 }
 
@@ -569,6 +593,14 @@ int tm_enc_event(int list, uint32_t id, int32_t delta)
     if (!st.active || st.shift || id < ENC_FIRST || id >= ENC_FIRST + ENC_COUNT || menu_owns(id))
         return 0;
     int enc = (int)(id - ENC_FIRST);    /* == param index P_PROB..P_HEADS */
+    if (enc == ENC_VEL) {
+        if (list != 2)
+            return 1;
+        tm.vel = (uint8_t)clamp(tm.vel + delta * TM_VEL_STEP, 0, TM_VEL_MAX);
+        param_save(P_VEL);
+        show_param(P_VEL);
+        return 1;
+    }
     if (enc == ENC_ROTATE) {
         if (list != 2)
             return 1;
@@ -650,12 +682,11 @@ void tm_mode_init(void)
 {
     volatile uint32_t *systick_val = (volatile uint32_t *)0xE000E018;
     tm_init(&tm, *systick_val ^ g_clock_ticks);
-    tm.mask |= MASK_ALWAYS_ON;
     st.note = -1;
     /* Define the persistent params at feature-init time like the stock features do, so
      * confstore restores them (and re-applies them through the listener) after loading. */
     for (int p = 0; p < P_COUNT; p++)
-        feat_set(param_id[p], *param_field(p) & 0x7F, PARAM_PERSISTENT);
+        feat_set(param_id[p], param_value(p), PARAM_PERSISTENT);
     feat_set(PARAM_MAGIC_ID, PARAM_MAGIC, PARAM_PERSISTENT);
 }
 
@@ -678,7 +709,7 @@ void tm_mode_poll(void)
         return;
     if (st.popup_pending) {
         st.popup_pending = 0;
-        popup("Turing Machine", "");
+        popup_overview();
     }
     uint16_t menu = 0;
     for (uint32_t id = 0; id < PAD_COUNT; id++)

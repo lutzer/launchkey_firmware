@@ -55,6 +55,10 @@ PROVIDE(g_relin_list_step  = 0x2000F238);
 
 /* clock: free-running 24 PPQN tick counter (internal tempo or external MIDI clock) */
 PROVIDE(g_clock_ticks      = 0x20000124);
+PROVIDE(device_key_count   = 0x0801D8CC | 1);
+PROVIDE(g_str_lang_base    = 0x08036A68);
+PROVIDE(g_str_lang         = 0x200015CC);
+PROVIDE(g_str_offsets      = 0x2000B984);
 PROVIDE(clock_midi_start    = 0x08013C12 | 1);
 PROVIDE(clock_midi_stop     = 0x08013C1A | 1);
 PROVIDE(clock_midi_continue = 0x08013C24 | 1);

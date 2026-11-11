@@ -15,7 +15,11 @@
 #define TM_GATE_MIN    5     /* gate length in % of a step; never reaches the next step */
 #define TM_GATE_MAX    95
 #define TM_GATE_STEP   5
-#define TM_NUM_HEADS   7     /* trigger head spacing: Full 1/2 1/3 1/4 1/6 1/8 1/16 */
+#define TM_VEL_MAX     100   /* velocity depth in % */
+#define TM_VEL_STEP    5
+#define TM_VEL_BASE    100   /* velocity at depth 0 */
+#define TM_VEL_SHIFT   4     /* velocity window = register bits 4..10 (pitch uses bits 0..7) */
+#define TM_NUM_HEADS   8     /* trigger modes, dense -> sparse (see tm_heads) */
 #define TM_PADS        8     /* lower pads = scale notes, upper pads = register bits */
 
 typedef struct {
@@ -27,7 +31,8 @@ typedef struct {
     uint8_t  range;    /* TM_RANGE_MIN..TM_RANGE_MAX */
     uint8_t  mask;     /* bit n = n-th scale note enabled (pad n + 1) */
     uint8_t  gate;     /* gate length in % of a step, TM_GATE_MIN..TM_GATE_MAX */
-    uint8_t  heads;    /* index into tm_head_spacing (0 = Full) */
+    uint8_t  heads;    /* index into tm_heads (0 = every step) */
+    uint8_t  vel;      /* velocity depth 0..TM_VEL_MAX % */
     uint32_t rng;      /* xorshift32 state, never 0 */
 } tm_t;
 
@@ -36,20 +41,41 @@ typedef struct {
 extern const uint16_t tm_div_ticks[TM_NUM_DIVS];
 #define TM_DIV_DEFAULT 8       /* 1/16 */
 
-/* Trigger heads sit at register positions 0, s, 2s, ... below the loop length. */
-extern const uint8_t tm_head_spacing[TM_NUM_HEADS];
+/* Trigger modes: the heads read register bits and combine them. A head at fraction f of the
+ * loop reads bit f * len (bit k = bit 0 delayed k steps), so heads stay on different steps for
+ * any length and every mode loops with the register. Dense -> sparse:
+ *   Every   every step                       100 %
+ *   OR 3    0 | 1/3 | 2/3                    ~88 %
+ *   OR 2    0 | 1/2                          ~75 %
+ *   Bit 1   0 (the module)                   ~50 %
+ *   XOR     0 ^ 1/2                          ~50 %, a different rhythm
+ *   AND 2   0 & 1/2                          ~25 %
+ *   AND 2+  0 & 1/2 & (1/4 | 3/4)            ~19 %
+ *   AND 3   0 & 1/3 & 2/3                    ~12 % */
+enum { TM_TRIG_EVERY, TM_TRIG_OR, TM_TRIG_AND, TM_TRIG_XOR, TM_TRIG_AND2_OR };
+#define TM_HEAD_FRAC   12    /* head positions in twelfths of the loop */
+typedef struct {
+    uint8_t     op;       /* TM_TRIG_*; AND2_OR: heads 0, 1 AND-ed with (head 2 | head 3) */
+    uint8_t     count;
+    uint8_t     at[4];    /* head positions in TM_HEAD_FRAC-ths of the loop length */
+    const char *name;
+} tm_heads_t;
+extern const tm_heads_t tm_heads[TM_NUM_HEADS];
 
 void tm_init(tm_t *tm, uint32_t seed);
 
 /* Advance the register one step; returns the bit shifted in. */
 int tm_step(tm_t *tm);
 
-/* A step plays a note when any trigger head (positions 0, s, 2s, ... < len; bit 0 = newest)
- * reads a 1. Full (s = 1) checks the whole loop, 1/16 only the first position. */
+/* 1 if the current step plays a note (trigger mode tm->heads). */
 int tm_gate(const tm_t *tm);
 
 /* Gate length in clock ticks: gate % of the step, always 1..step-1 (no ties). */
 uint16_t tm_gate_ticks(const tm_t *tm);
+
+/* Note velocity 1..127: TM_VEL_BASE blended with the 7-bit register window at TM_VEL_SHIFT,
+ * vel % of the way (0 = always TM_VEL_BASE, 100 = window only). */
+int tm_velocity(const tm_t *tm);
 
 /* Flip register bit i (0 = newest) if it is inside the loop; returns 1 if flipped. */
 int tm_flip(tm_t *tm, int i);

@@ -75,6 +75,14 @@
   (`0x08025712` capture = block + 0x0801BD28(id, 1), `0x08025726` release = unblock + 0x0801BC92(id, 3)).
 - MIDI out: `midi_put(port, byte)` @0x08013F8E (USB-MIDI packetiser, SysEx of any length), `midi_send3(port,
   status, d1, d2)` @0x08013F6E. App ports (objects on main's stack) at 0x2000EE40 / 0x2000EE44.
+- **Settings menu:** items via `settings_entry(i)` 0x0802B44C: 12-byte entries {u8 string id, u8 feature id,
+  u16 0, u32 type (8 = channel, 1 = vel curve, 0 = on/off, 9 = power-on modes, ...), u8 max, u8 steps, u16 0} in
+  table 0x08031AB0 (>= 49 keys, 20 items) / +0xF0 (Minis, 17 items); `device_key_count` 0x0801D8CC < 0x31 =
+  Mini. Pads select items 0..15 (`settings_count_pads` 0x0802B43A = 16/19); the arrows (34/35) step through
+  `settings_count_nav` 0x0802B428 = 17/20 items. cfw (settings.c) adds item 17 "Turing Channel" (feature 0x61,
+  type 8) by hooking the accessor and count_nav, and `str_get` 0x08015B0C (id 0xE2 = new name; stock returns
+  "" for ids >= 0xE2; strings = lang base table 0x08036A68[lang @0x200015CC] + u16 offsets @0x2000B984).
+- **Overview popup template 4:** field 0 title, fields 1..8 = 2 rows x 4 fields of 32 px (encoder labels).
 - **Layout names:** `layout_name_text_a` 0x0802AEB8 (mode popups, called at 0x08022548/A32/A58/E8C) and
   `layout_name_text_b` 0x0802AECA (home screen, 0x08024230) write a layout's name into a display field, handle
   {index, type} in r2/r3. cfw hooks those calls so pad Custom 4 reads "Turing Machine".
@@ -140,11 +148,11 @@
 ## Turing Machine mode (cfw, pad mode Custom 4)
 
 - `cfw/tm_mode.c` + `cfw/tm_core.c`. Top pads = register bits 0..7 (bit 0 newest = pad 1, green; press flips),
-  bottom pads = scale notes (white; press toggles), encoders 1..7 = probability, length, rate (4/1..1/32,
-  CW = faster), range, gate, trigger heads, rotate; octave on the up/down arrows. A step plays a note when any trigger head reads a 1:
-  heads at positions 0, s, 2s, ... below the loop length, s = 1 (Full, default) / 2 / 3 / 4 / 6 / 8 / 16
-  (1/16 = first position only; a loop shorter than s also leaves only position 0). The note lasts gate % of
-  the step (5..95 %) and is always released before the next step (no ties). Encoder 8 follows the encoder mode.
+  bottom pads = scale notes (white; press toggles), encoders 1..8 = probability, length, rate (4/1..1/32,
+  CW = faster), range, gate, trigger heads, rotate, velocity; octave on the up/down arrows. Trigger modes (tm_heads, dense -> sparse): Every, OR(0,1/3,2/3), OR(0,1/2), 0,
+  XOR(0,1/2), AND(0,1/2), AND(0,1/2)&OR(1/4,3/4), AND(0,1/3,2/3); a head at fraction f reads bit f*len (min 1
+  after the first), i.e. bit 0 delayed - fixed bits collapsed on short loops (len 3: bit 3 = bit 0). The note lasts gate % of
+  the step (5..95 %) and is always released before the next step (no ties). Encoder 8 = velocity depth: velocity = 100 blended with the 7-bit window reg bits 4..10 (tm_velocity).
 - Pitch: register value (bits 0..7) picks a note from the full scale (range counts all scale notes); a note
   disabled on the bottom pads is replaced by the closest enabled note in pitch (tie -> lower). All off = rest.
 - **Button ids** (DAW-mode CC map 0x0801C180, ctl -> CC: 0x22 -> 106 up, 0x23 -> 107 down, 0x10 -> 104
@@ -154,17 +162,17 @@
   While Function is held both rows show register bits 0..15 (frozen) and pad presses flip them.
   The keyboard-octave popup captures the arrows (ctl_is_blocked 34/35), so the four mode buttons only yield
   to a menu that has captured pad 0 too (Settings etc.).
-- Bottom pads 8..14 = scale notes 1..7 (8th note of 8-note scales always on), pad 15 unused. Hold: while
+- Bottom pads 8..15 = scale notes 1..8 (pad 15 only for 8-note scales; note 8 stored inverted in 0x62). Hold: while
   held both rows show a frozen copy of the register while it keeps running; a pad press flips the bit
   it showed, at position (pad + steps since freezing) mod length.
 - Menus: controls captured by a menu (ctl_is_blocked) go to the menu - except after (re)selecting pad Custom 4:
   Scale/Arp screens keep encoders captured after leaving them, so selecting the mode sets a priority flag
   that wins over captures until any other button (not Shift/pads/encoders/the four mode buttons) is pressed.
-- Notes: MIDI port (g_app_ports[1]) on the Keys Channel (0x64), velocity 100. **DIN/TRS out:** main() inits a
+- Notes: MIDI port (g_app_ports[1]) on the Turing Channel (feature 0x61, Settings item 17). **DIN/TRS out:** main() inits a
   third port (stack sp+0x50, raw-byte mode, serial ring -> USART6 @31250 baud via DMA) and links it to the MIDI
   port (`port+0x18`, `0x08013EE8`); `midi_send3` walks that chain, so MIDI-port notes also go out on DIN.
 - **Persistence:** feature params 0x50 prob, 0x51 length, 0x52 rate, 0x5A octave, 0x5B range, 0x5D gate,
-  0x5E trigger heads, 0x5F note mask (7 bits), 0x60 marker (0x5A), defined with flags 3 in cfw_init. Marker
+  0x5E trigger heads, 0x5F note mask (7 bits), 0x61 MIDI channel, 0x62 note 8 off, 0x63 velocity depth, 0x60 marker (0x5A), defined with flags 3 in cfw_init. Marker
   missing (first boot / older settings record) -> defaults are stored. Ids 0x20..0x3F avoided: they alias the
   LSBs of 14-bit params 0x00..0x1F.
 

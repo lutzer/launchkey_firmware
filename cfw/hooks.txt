@@ -16,6 +16,11 @@
 0x08022e8c  bl  cfw_layout_name_a 08f014f8
 0x08024230  bl  cfw_layout_name_b 06f04bfe   # was: bl layout_name_text_b
 
+# Settings menu: extra item "Turing Channel" (cfw/settings.c)
+0x0802b44c  b.w cfw_settings_entry     10b50c21   # was: push {r4,lr}; movs r1,#12 (settings_entry)
+0x0802b428  b.w cfw_settings_count_nav 80b5f2f7   # was: push {r7,lr}; bl device_key_count (1st half)
+0x08015b0c  b.w cfw_str_get            0146e229   # was: mov r1,r0; cmp r1,#0xe2 (str_get)
+
 # MIDI realtime handler (0x08030958): transport messages also go to Turing Machine mode
 0x08030968  bl  cfw_midi_start    e3f753f9   # was: bl clock_midi_start (FA)
 0x08030972  bl  cfw_midi_continue e3f757f9   # was: bl clock_midi_continue (FB)

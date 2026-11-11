@@ -16,7 +16,7 @@ firmware version 1.3 build 1563. It adds:
 ## Turing Machine mode
 
 Select it like any pad mode: **hold Shift and press the 8th pad of the bottom row (pad mode Custom 4)**.
-The display shows "Turing Machine". The mode starts **paused**.
+The display shows "Turing Machine" with short labels of the eight encoders. The mode starts **paused**.
 
 A 16-bit shift register loops and, depending on the probability, flips the bit that comes round again. Its
 value picks a note from the current scale, and trigger heads decide whether a step plays a note.
@@ -26,7 +26,7 @@ value picks a note from the current scale, and trigger heads decide whether a st
 | Control | Function |
 |---|---|
 | Top row (green) | Register bits 1–8, moving one pad to the right per step. Dark = beyond the loop length. |
-| Bottom row, pads 1–7 (white) | **Scale notes** (pad 1 = root). Press to switch a note on (bright) or off (dim). A disabled note is replaced by the closest enabled note. With Scale off all pads are lit and all 12 semitones are used. Pad 8 is unused. |
+| Bottom row (white) | **Scale notes** (pad 1 = root, pad 8 = 8th note of 8-note scales). Press to switch a note on (bright) or off (dim); pads beyond the scale are dark. A disabled note is replaced by the closest enabled note. With Scale off all eight pads are lit and all 12 semitones are used. |
 | **>** (above Function) | **Play / pause** (lit while playing). |
 | **Function** (next to the pads) | **Hold.** While held, both rows show all 16 register bits (top = 1–8, bottom = 9–16), frozen on screen while the sequence keeps running, and pressing a pad **flips that bit**. |
 | **Up / Down arrows** (next to the pads) | **Octave** 0–8 (an arrow is dim when the end is reached). |
@@ -40,9 +40,9 @@ value picks a note from the current scale, and trigger heads decide whether a st
 | 3 | Rate (turn right = faster) | 4/1, 2/1, 1/1, 1/2, 1/4, 1/4T, 1/8, 1/8T, 1/16, 1/16T, 1/32 |
 | 4 | Range | 1–36 scale notes |
 | 5 | Gate length | 5–95 % of a step (notes are never tied) |
-| 6 | Trigger heads | Full, 1/2, 1/3, 1/4, 1/6, 1/8, 1/16 – a step plays a note when any head (register position 1, then every n-th, within the loop) reads a 1. Full = nearly every step, 1/16 = only when bit 1 is set. |
+| 6 | Trigger heads (turn right = sparser) | **Every** step · **OR 3** (~88 %) · **OR 2** (~75 %) · **Bit 1** (~50 %, like the module) · **XOR** (~50 %, different rhythm) · **AND 2** (~25 %) · **AND 2+** (~19 %) · **AND 3** (~12 %). The heads sit at fixed fractions of the loop (start, ½, ⅓ and ⅔, ¼ and ¾) and combine what they read, so the rhythm loops and mutates with the pattern at any length. |
 | 7 | Rotate | Shifts the loop one step per detent without changing bits, i.e. chooses the step that MIDI Start returns to (shown as "Step n") |
-| 8 | follows the selected encoder mode | |
+| 8 | Velocity depth | Fixed (velocity 100) … 100 % in 5 % steps: blends in a velocity read from a shifted window of the register (bits 5–11), so accents loop and change with the pattern |
 
 Turning an encoder shows its value on the display.
 
@@ -51,12 +51,12 @@ Turning an encoder shows its value on the display.
 - **Tempo** follows the device: the internal tempo, or external MIDI clock when connected.
 - **MIDI transport:** Start goes back to the first step of the loop (set with encoder 7) and plays it on the
   next clock tick (the downbeat), Continue resumes, Stop pauses. **>** still works as well.
-- **Notes** go out on the **Keys Channel** (Settings) via USB MIDI and the TRS MIDI out, velocity 100.
+- **Notes** go out on the **Turing Channel** via USB MIDI and the TRS MIDI out (velocity: see encoder 8). Set it in
+  **Settings**: it is the last item, after "Power On Modes" – use the down arrow to get there (default 1).
 - **All parameters and the scale-note selection are saved** and restored at power-on (about 3 seconds after
   the last change). The running pattern and play/pause are not saved.
 - **Shift still works:** Shift + pads selects pad and encoder modes as usual, and menus (Settings, Scale, Arp)
   get the encoders while they are open. If a Scale or Arp screen keeps the encoders, select pad Custom 4 again.
-- The 8th note of 8-note scales (Half-Whole Dim, Whole-Half Dim, 8-tone Spanish) is always on.
 
 ---
 

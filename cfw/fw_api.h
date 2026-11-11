@@ -108,6 +108,13 @@ void led_override(uint32_t id, uint32_t mode);
  * internal tempo (period in us at 0x20000114) or counted external MIDI clocks. Poll it from
  * the main loop and step on the difference, like the MIDI Clock Out sender (0x08014492). */
 extern volatile uint32_t g_clock_ticks;
+/* Model: number of keys (25 / 37; >= 49 selects the big-model settings table). */
+uint32_t device_key_count(void);
+/* String table behind str_get: per-language base pointers, current language, u16 offsets. */
+extern const char *const g_str_lang_base[];
+extern volatile uint8_t g_str_lang;
+extern const uint16_t g_str_offsets[];
+
 /* Received MIDI transport (realtime handler 0x08030958 calls these for FA / FB / FC). */
 void clock_midi_start(void);
 void clock_midi_continue(void);

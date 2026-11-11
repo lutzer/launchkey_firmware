@@ -7,6 +7,7 @@
 void tm_mode_init(void);
 void tm_mode_poll(void);
 void tm_feat_changed(uint32_t id, uint32_t value);
+#define TM_CHANNEL_PARAM 0x61   /* feature param: Turing Machine MIDI channel 0..15 (Settings) */
 /* tm_io_event result */
 #define TM_PASS      0   /* stock listeners get the event */
 #define TM_CONSUME   1   /* only Turing Machine mode */

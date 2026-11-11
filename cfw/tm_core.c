@@ -1,6 +1,15 @@
 #include "tm_core.h"
 
-const uint8_t tm_head_spacing[TM_NUM_HEADS] = {1, 2, 3, 4, 6, 8, 16};
+const tm_heads_t tm_heads[TM_NUM_HEADS] = {
+    {TM_TRIG_EVERY,   0, {0},           "Every"},
+    {TM_TRIG_OR,      3, {0, 4, 8},     "OR 3"},
+    {TM_TRIG_OR,      2, {0, 6},        "OR 2"},
+    {TM_TRIG_OR,      1, {0},           "Bit 1"},
+    {TM_TRIG_XOR,     2, {0, 6},        "XOR"},
+    {TM_TRIG_AND,     2, {0, 6},        "AND 2"},
+    {TM_TRIG_AND2_OR, 4, {0, 6, 3, 9},  "AND 2+"},
+    {TM_TRIG_AND,     3, {0, 4, 8},     "AND 3"},
+};
 
 const uint16_t tm_div_ticks[TM_NUM_DIVS] = {384, 192, 96, 48, 24, 16, 12, 8, 6, 4, 3};
 
@@ -24,7 +33,8 @@ void tm_init(tm_t *tm, uint32_t seed)
     tm->range = 8;
     tm->mask = 0xFF;
     tm->gate = 50;
-    tm->heads = 0;          /* Full */
+    tm->heads = 0;          /* every step */
+    tm->vel = 0;
 }
 
 int tm_step(tm_t *tm)
@@ -36,13 +46,34 @@ int tm_step(tm_t *tm)
     return in;
 }
 
+/* Bit read by a head at fraction at/TM_HEAD_FRAC of the loop; heads after the first never
+ * share bit 0 (loops of length 2 still get two different steps). */
+static int head_bit(const tm_t *tm, int at)
+{
+    int pos = at * tm->len / TM_HEAD_FRAC;
+    if (at && pos == 0)
+        pos = 1;
+    return tm->reg >> pos & 1;
+}
+
 int tm_gate(const tm_t *tm)
 {
-    int s = tm_head_spacing[tm->heads];
-    for (int pos = 0; pos < tm->len; pos += s)
-        if (tm->reg >> pos & 1)
-            return 1;
-    return 0;
+    const tm_heads_t *h = &tm_heads[tm->heads];
+    int any = 0, all = 1, odd = 0;
+    for (int i = 0; i < h->count; i++) {
+        int b = head_bit(tm, h->at[i]);
+        any |= b;
+        all &= b;
+        odd ^= b;
+    }
+    switch (h->op) {
+    case TM_TRIG_OR:      return any;
+    case TM_TRIG_AND:     return all;
+    case TM_TRIG_XOR:     return odd;
+    case TM_TRIG_AND2_OR: return head_bit(tm, h->at[0]) && head_bit(tm, h->at[1]) &&
+                                 (head_bit(tm, h->at[2]) || head_bit(tm, h->at[3]));
+    default:              return 1;
+    }
 }
 
 uint16_t tm_gate_ticks(const tm_t *tm)
@@ -54,6 +85,13 @@ uint16_t tm_gate_ticks(const tm_t *tm)
     if (t > step - 1)
         t = step - 1;
     return (uint16_t)t;
+}
+
+int tm_velocity(const tm_t *tm)
+{
+    int window = 1 + (tm->reg >> TM_VEL_SHIFT & 0x7F) * 126 / 127;     /* 1..127 */
+    int v = (TM_VEL_BASE * (TM_VEL_MAX - tm->vel) + window * tm->vel) / TM_VEL_MAX;
+    return v < 1 ? 1 : v > 127 ? 127 : v;
 }
 
 void tm_rewind(tm_t *tm, int n)

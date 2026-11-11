@@ -165,36 +165,71 @@ static void test_rewind(void)
         }
 }
 
-static int heads_index(int spacing)
+static void test_velocity(void)
 {
-    for (int i = 0; i < TM_NUM_HEADS; i++)
-        if (tm_head_spacing[i] == spacing)
-            return i;
-    return -1;
+    tm_t tm; int lo = 127, hi = 0;
+    tm_init(&tm, 21);
+    for (int v = 0; v < 65536; v += 13) {
+        tm.reg = (uint16_t)v;
+        tm.vel = 0;
+        CHECK(tm_velocity(&tm) == TM_VEL_BASE, "depth 0 must give the base velocity");
+        for (int d = 0; d <= TM_VEL_MAX; d += TM_VEL_STEP) {
+            tm.vel = (uint8_t)d;
+            int vel = tm_velocity(&tm);
+            CHECK(vel >= 1 && vel <= 127, "velocity %d out of range", vel);
+        }
+        tm.vel = TM_VEL_MAX;
+        int vel = tm_velocity(&tm);
+        lo = vel < lo ? vel : lo; hi = vel > hi ? vel : hi;
+    }
+    CHECK(lo == 1 && hi == 127, "full depth must span 1..127 (got %d..%d)", lo, hi);
+    tm.vel = TM_VEL_MAX;
+    tm.reg = 0x000F;                /* bits below the window do not matter */
+    CHECK(tm_velocity(&tm) == 1, "window 0 -> velocity 1");
+    tm.reg = 0x07F0;
+    CHECK(tm_velocity(&tm) == 127, "window 127 -> velocity 127");
 }
 
 static void test_heads(void)
 {
     tm_t tm;
     tm_init(&tm, 4);
-    CHECK(tm.heads == 0 && tm_head_spacing[0] == 1, "default is Full");
-    tm.len = 8;
-    tm.heads = 0;  tm.reg = 0x0080; CHECK(tm_gate(&tm), "Full: a 1 anywhere in the loop gates");
-    tm.reg = 0x0100;                CHECK(!tm_gate(&tm), "Full: bits beyond the loop do not count");
-    tm.heads = (uint8_t)heads_index(2);
-    tm.reg = 0x0004; CHECK(tm_gate(&tm), "1/2: position 2 is a head");
-    tm.reg = 0x0002; CHECK(!tm_gate(&tm), "1/2: position 1 is not a head");
-    tm.heads = (uint8_t)heads_index(3);
-    tm.reg = 0x0040; CHECK(tm_gate(&tm), "1/3: position 6 is a head");
-    tm.reg = 0x0020; CHECK(!tm_gate(&tm), "1/3: position 5 is not a head");
-    tm.heads = (uint8_t)heads_index(16);
-    tm.len = 16;
-    tm.reg = 0x8000; CHECK(!tm_gate(&tm), "1/16: only the first position");
-    tm.reg = 0x0001; CHECK(tm_gate(&tm), "1/16: first position gates");
-    tm.heads = (uint8_t)heads_index(4);
-    tm.len = 3;                     /* shorter than the spacing: only the first bit */
-    tm.reg = 0x0006; CHECK(!tm_gate(&tm), "short loop: only bit 0 is a head");
-    tm.reg = 0x0001; CHECK(tm_gate(&tm), "short loop: bit 0 gates");
+    CHECK(tm.heads == 0 && tm_heads[0].op == TM_TRIG_EVERY, "default is every step");
+    tm.reg = 0x0000; CHECK(tm_gate(&tm), "Every: plays with all bits 0");
+    /* density over a long random run must fall from dense to sparse */
+    int prev = 100000;
+    tm.len = 16; tm.prob = 64;
+    for (int m = 0; m < TM_NUM_HEADS; m++) {
+        int n = 0;
+        tm.heads = (uint8_t)m;
+        for (int i = 0; i < 20000; i++) {
+            tm_step(&tm);
+            n += tm_gate(&tm);
+        }
+        CHECK(n <= prev + 600, "mode %s (%d gates) denser than the one before (%d)", tm_heads[m].name, n, prev);
+        prev = n;
+    }
+    tm.len = 16;                    /* heads: 1/2 -> bit 8, 1/3 -> 5, 2/3 -> 10, 1/4 -> 4, 3/4 -> 12 */
+    tm.heads = 3;                   /* Bit 1 = the module */
+    tm.reg = 0x0001; CHECK(tm_gate(&tm), "Bit 1: bit 0 set");
+    tm.reg = 0xFFFE; CHECK(!tm_gate(&tm), "Bit 1: only bit 0 counts");
+    tm.heads = 7;                   /* AND 3 */
+    tm.reg = 0x0421; CHECK(tm_gate(&tm), "AND 3: b0 b5 b10 set");
+    tm.reg = 0x0021; CHECK(!tm_gate(&tm), "AND 3: b10 missing");
+    tm.heads = 6;                   /* AND 2+ */
+    tm.reg = 0x0111; CHECK(tm_gate(&tm), "AND 2+: b0 b8 and b4");
+    tm.reg = 0x1101; CHECK(tm_gate(&tm), "AND 2+: b0 b8 and b12");
+    tm.reg = 0x0101; CHECK(!tm_gate(&tm), "AND 2+: neither b4 nor b12");
+    tm.heads = 4;                   /* XOR */
+    tm.reg = 0x0100; CHECK(tm_gate(&tm), "XOR: one of two");
+    tm.reg = 0x0101; CHECK(!tm_gate(&tm), "XOR: both");
+    /* short loops: the heads must stay on different steps */
+    tm.len = 3; tm.reg = 0x0002;    /* XOR heads at bits 0 and 1 */
+    CHECK(tm_gate(&tm), "XOR len 3: second head at bit 1");
+    tm.len = 2; tm.reg = 0x0001;
+    CHECK(tm_gate(&tm), "XOR len 2: heads at bits 0 and 1");
+    tm.heads = 5; tm.reg = 0x0001;  /* AND 2, len 2 */
+    CHECK(!tm_gate(&tm), "AND 2 len 2: bit 1 must count too");
 }
 
 static void test_gate(void)
@@ -202,7 +237,7 @@ static void test_gate(void)
     tm_t tm; int gated = 0, ones = 0;
     tm_init(&tm, 77);
     tm.len = 16; tm.prob = 64;
-    tm.heads = (uint8_t)heads_index(16);    /* single head = first position */
+    tm.heads = 3;                           /* Bit 1: single head = first position */
     for (int i = 0; i < 5000; i++) {
         tm_step(&tm);
         ones += tm.reg & 1;
@@ -226,6 +261,7 @@ int main(void)
 {
     test_flip();
     test_rewind();
+    test_velocity();
     test_gate();
     test_heads();
     test_locked();

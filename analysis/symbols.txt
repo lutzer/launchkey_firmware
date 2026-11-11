@@ -108,3 +108,8 @@
 0x08013c24 clock_midi_continue
 0x0802aeb8 layout_name_text_a
 0x0802aeca layout_name_text_b
+0x0802b44c settings_entry
+0x0802b428 settings_count_nav
+0x0802b43a settings_count_pads
+0x0801d8cc device_key_count
+0x08031ab0 g_settings_items              data
