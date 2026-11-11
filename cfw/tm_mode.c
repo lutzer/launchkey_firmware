@@ -1,16 +1,24 @@
 /* Turing Machine mode (replaces pad mode Custom 4).
  *
  * Active while feature param 0x1D (pad mode) = 8 and Shift is up:
- *   top pads 0..7      register bits (newest at pad 1), green; dark beyond the loop length;
- *                      press flips the bit
- *   bottom pads 8..15  scale notes (pad 9 = root, ...), white; press toggles (Scale on only)
+ *   top pads 0..7      register bits (newest at pad 1), green; dark beyond the loop length.
+ *                      Pad 1 is yellow and play/pause (bright = bit 1, dim = 0). While the hold
+ *                      pad is down all eight are green and a press flips the bit; otherwise
+ *                      pads 2..8 do nothing. The mode starts paused.
+ *   bottom pads 8..14  scale notes (pad 9 = root, ...), white; press toggles (Scale on only);
+ *                      the 8th note of 8-note scales is always on
+ *   bottom pad 15      hold (pink): while held the top row is frozen on screen (the register
+ *                      keeps running) and top-pad presses flip the bit they showed
+ * Parameters and the note mask are saved as persistent feature params (see PARAM_*).
  *   encoders 1..7      probability, length, rate, octave, range, gate length, trigger heads
  * A step plays a note when any trigger head (register positions 0, s, 2s, ... within the loop;
  * Full = every position, 1/16 = first only) reads a 1; every note lasts the gate length and
  * is released before the next step (no ties).
- * Steps on the 24 PPQN clock counter (g_clock_ticks), notes go out on the USB MIDI port.
+ * Steps on the 24 PPQN clock counter (g_clock_ticks), notes go out on the MIDI port, which the
+ * stock firmware chains to the DIN/TRS output (port link +0x18, set in main).
  * The input dispatchers in cfw_init.c ask tm_io_event / tm_enc_event whether an event
- * belongs to this mode.
+ * belongs to this mode. Controls captured by a menu (ctl_is_blocked) go to the menu, unless
+ * pad Custom 4 was (re)selected since the last other button press (st.priority).
  */
 #include <stdint.h>
 #include "fw_api.h"
@@ -23,22 +31,37 @@
 #define FEAT_SCALE_ON     0x4A
 #define FEAT_PAD_MODE     0x1D
 #define FEAT_SHIFT        0x3F
+#define CTL_SHIFT         25
 #define FEAT_KEYS_CHANNEL 0x64        /* Settings > Keys Channel, 0-based */
 #define PAD_CUSTOM4       8
 
 #define PAD_COUNT         16
 #define PAD_ROW           8
+#define NOTE_PADS         7           /* bottom pads 8..14 */
+#define PAD_HOLD          15
+#define MASK_ALWAYS_ON    0x80        /* 8th scale note has no pad */
 #define ENC_FIRST         56          /* encoder 1 */
 #define ENC_COUNT         7
 
-#define MIDI_PORT         1           /* g_app_ports[1] = USB MIDI port */
+#define MIDI_PORT         1           /* g_app_ports[1] = USB MIDI port (+ DIN via link) */
 #define VELOCITY          100
 
 #define GREEN_ON          0x00FF00
 #define GREEN_DIM         0x001800
+#define YELLOW_ON         0xFFC000
+#define YELLOW_DIM        0x281800
 #define WHITE_ON          0xFFFFFF
 #define WHITE_DIM         0x181818
+#define PINK_ON           0xFF2090
+#define PINK_DIM          0x300818
 #define LED_OFF           0x000000
+
+/* Persistent feature params (free ids >= 0x40: ids 0x20..0x3F double as 14-bit LSBs). */
+enum { P_PROB, P_LEN, P_RATE, P_OCT, P_RANGE, P_GATE, P_HEADS, P_MASK, P_COUNT };
+static const uint8_t param_id[P_COUNT] = {0x50, 0x51, 0x52, 0x5A, 0x5B, 0x5D, 0x5E, 0x5F};
+#define PARAM_MAGIC_ID    0x60        /* != PARAM_MAGIC: stored values are not ours -> defaults */
+#define PARAM_MAGIC       0x5A
+#define PARAM_PERSISTENT  3           /* definition flags: defined | persistent */
 
 enum { ENC_PROB, ENC_LEN, ENC_RATE, ENC_OCT, ENC_RANGE, ENC_GATE, ENC_HEADS };
 
@@ -51,6 +74,13 @@ static struct {
     uint16_t menu_pads;      /* pads currently captured by a menu (not drawn) */
     uint32_t last_clock;
     uint32_t owned;          /* controls whose current press belongs to this mode (slot bits) */
+    uint8_t hold;            /* hold pad down: top row frozen, bits can be flipped */
+    uint8_t playing;         /* play/pause (top pad 1); off when the mode is entered */
+    uint8_t priority;        /* set by (re)selecting pad Custom 4: our controls win over a menu
+                              * (Scale/Arp screens keep them captured); cleared by any other
+                              * button press, i.e. whenever a menu may be opened */
+    uint16_t frozen_reg;     /* register as shown while frozen */
+    uint16_t frozen_steps;   /* steps since freezing */
 } st;
 
 static const char *const rate_names[TM_NUM_DIVS] = {
@@ -84,6 +114,60 @@ static uint32_t feat_get(uint32_t id)
     fw_param_t p;
     confsys_get_param(FW_GROUP_FEATURE, id, &p);
     return p.value;
+}
+
+static void feat_set(uint32_t id, uint32_t value, uint32_t flags)
+{
+    fw_param_t p = {value, flags};
+    confsys_set_param(FW_GROUP_FEATURE, id, &p, 0);
+}
+
+static uint8_t *param_field(int p)
+{
+    switch (p) {
+    case P_PROB:  return &tm.prob;
+    case P_LEN:   return &tm.len;
+    case P_RATE:  return &tm.div;
+    case P_OCT:   return &tm.octave;
+    case P_RANGE: return &tm.range;
+    case P_GATE:  return &tm.gate;
+    case P_HEADS: return &tm.heads;
+    default:      return &tm.mask;
+    }
+}
+
+static int clamp(int v, int lo, int hi);
+
+static void param_apply(int p, uint32_t v)
+{
+    switch (p) {
+    case P_PROB:  tm.prob = (uint8_t)clamp((int)v, 0, TM_PROB_MAX); break;
+    case P_LEN:   tm.len = (uint8_t)clamp((int)v, TM_LEN_MIN, TM_LEN_MAX); break;
+    case P_RATE:  tm.div = (uint8_t)clamp((int)v, 0, TM_NUM_DIVS - 1); break;
+    case P_OCT:   tm.octave = (uint8_t)clamp((int)v, 0, TM_OCT_MAX); break;
+    case P_RANGE: tm.range = (uint8_t)clamp((int)v, TM_RANGE_MIN, TM_RANGE_MAX); break;
+    case P_GATE:  tm.gate = (uint8_t)clamp((int)v, TM_GATE_MIN, TM_GATE_MAX); break;
+    case P_HEADS: tm.heads = (uint8_t)clamp((int)v, 0, TM_NUM_HEADS - 1); break;
+    case P_MASK:  tm.mask = (uint8_t)((v & 0x7F) | MASK_ALWAYS_ON); break;
+    }
+}
+
+static void param_save(int p)
+{
+    feat_set(param_id[p], *param_field(p) & 0x7F, 0);
+}
+
+/* Stored values valid -> load them; otherwise (first boot, old settings record) store ours. */
+static void param_sync(void)
+{
+    if (feat_get(PARAM_MAGIC_ID) == PARAM_MAGIC) {
+        for (int p = 0; p < P_COUNT; p++)
+            param_apply(p, feat_get(param_id[p]));
+    } else {
+        for (int p = 0; p < P_COUNT; p++)
+            param_save(p);
+        feat_set(PARAM_MAGIC_ID, PARAM_MAGIC, 0);    /* last: its listener call re-syncs */
+    }
 }
 
 static const uint8_t *scale_semis(void)
@@ -133,8 +217,18 @@ static void draw_register(void)
 {
     if (st.shift)
         return;
-    for (uint32_t i = 0; i < PAD_ROW; i++)
-        led(i, i >= tm.len ? LED_OFF : (tm.reg >> i & 1) ? GREEN_ON : GREEN_DIM);
+    uint16_t reg = st.hold ? st.frozen_reg : tm.reg;
+    for (uint32_t i = 0; i < PAD_ROW; i++) {
+        int bit = reg >> i & 1;
+        uint32_t rgb;
+        if (i >= tm.len)
+            rgb = LED_OFF;
+        else if (i == 0 && !st.hold)
+            rgb = bit ? YELLOW_ON : YELLOW_DIM;     /* play/pause */
+        else
+            rgb = bit ? GREEN_ON : GREEN_DIM;
+        led(i, rgb);
+    }
 }
 
 static void draw_notes(void)
@@ -143,7 +237,7 @@ static void draw_notes(void)
         return;
     int scale_on = feat_get(FEAT_SCALE_ON) != 0;
     int size = tm_scale_size(scale_semis());
-    for (uint32_t i = 0; i < PAD_ROW; i++) {
+    for (uint32_t i = 0; i < NOTE_PADS; i++) {
         uint32_t rgb;
         if (!scale_on)
             rgb = WHITE_ON;
@@ -153,6 +247,7 @@ static void draw_notes(void)
             rgb = (tm.mask >> i & 1) ? WHITE_ON : WHITE_DIM;
         led(PAD_ROW + i, rgb);
     }
+    led(PAD_HOLD, st.hold ? PINK_ON : PINK_DIM);
 }
 
 static void popup(const char *title, const char *value)
@@ -217,6 +312,7 @@ static void step(void)
 {
     note_off();
     tm_step(&tm);
+    st.frozen_steps++;
     if (tm_gate(&tm))
         note_on(tm_note(&tm, (int)feat_get(FEAT_SCALE_ROOT) % 12, scale_semis(), feat_get(FEAT_SCALE_ON) != 0));
     draw_register();
@@ -240,6 +336,19 @@ static void advance_clock(void)
     }
 }
 
+static void set_playing(int on)
+{
+    st.playing = (uint8_t)on;
+    if (on) {
+        st.last_clock = g_clock_ticks;
+        st.ticks = 0;
+        step();                 /* start right away */
+    } else {
+        note_off();
+    }
+    popup("Turing Machine", on ? "Playing" : "Paused");
+}
+
 /* ---- mode switching ---- */
 
 static void set_active(int on)
@@ -250,17 +359,26 @@ static void set_active(int on)
     if (on) {
         st.ticks = 0;
         st.last_clock = g_clock_ticks;
+        st.playing = 0;         /* entering the mode never starts playback */
         draw_register();
         draw_notes();
         popup("Turing Machine", "");
     } else {
         note_off();
+        st.hold = 0;
+        st.playing = 0;
         for (uint32_t id = 0; id < PAD_COUNT; id++)
             led_override(id, LED_RELEASE);
     }
 }
 
 /* ---- input (called from the dispatchers in cfw_init.c) ---- */
+
+/* A menu (Settings, Scale, Arp, ...) owns this control right now. */
+static int menu_owns(uint32_t id)
+{
+    return !st.priority && ctl_is_blocked(id);
+}
 
 static int ctl_slot(uint32_t id)
 {
@@ -273,9 +391,27 @@ static int ctl_slot(uint32_t id)
 
 static void pad_pressed(uint32_t id)
 {
-    if (id < PAD_ROW) {                         /* register pad: flip that bit */
-        if (tm_flip(&tm, (int)id))
+    if (id < PAD_ROW) {
+        if (!st.hold) {                         /* flips need the hold pad; pad 1 = play/pause */
+            if (id == 0)
+                set_playing(!st.playing);
+            return;
+        }
+        if ((int)id >= tm.len)
+            return;
+        /* the bit shown has moved on by the steps since freezing */
+        int pos = ((int)id + st.frozen_steps) % tm.len;
+        st.frozen_reg ^= (uint16_t)(1u << id);
+        if (tm_flip(&tm, pos))
             draw_register();
+        return;
+    }
+    if (id == PAD_HOLD) {
+        st.hold = 1;
+        st.frozen_reg = tm.reg;
+        st.frozen_steps = 0;
+        draw_register();        /* pad 1 turns green */
+        draw_notes();
         return;
     }
     if (!feat_get(FEAT_SCALE_ON))
@@ -284,7 +420,17 @@ static void pad_pressed(uint32_t id)
     if ((int)i >= tm_scale_size(scale_semis()))
         return;
     tm.mask ^= (uint8_t)(1u << i);
+    param_save(P_MASK);
     draw_notes();
+}
+
+static void pad_released(uint32_t id)
+{
+    if (id == PAD_HOLD && st.hold) {
+        st.hold = 0;
+        draw_register();
+        draw_notes();
+    }
 }
 
 /* list: 0 = press (A), 1 = B, 2 = release (C), 3 = D. Returns TM_PASS / TM_CONSUME / TM_ENC_ONLY. */
@@ -292,19 +438,25 @@ int tm_io_event(int list, uint32_t id, uint32_t value)
 {
     (void)value;
     int slot = ctl_slot(id);
-    if (slot < 0)
+    if (slot < 0) {
+        if (list == 0 && id != CTL_SHIFT)
+            st.priority = 0;    /* any other button may open a menu: menus win again */
         return TM_PASS;
+    }
     uint32_t bit = 1u << slot;
     if (list == 0) {            /* the press decides who owns the control until its release */
-        int take = st.active && !st.shift && !ctl_is_blocked(id);   /* blocked = a menu has it */
+        int take = st.active && !st.shift && !menu_owns(id);
         st.owned = take ? st.owned | bit : st.owned & ~bit;
         if (take && id < PAD_COUNT)
             pad_pressed(id);
     }
     if (!(st.owned & bit))
         return TM_PASS;
-    if (list == 2)
+    if (list == 2) {
         st.owned &= ~bit;
+        if (id < PAD_COUNT)
+            pad_released(id);
+    }
     return id < PAD_COUNT ? TM_CONSUME : TM_ENC_ONLY;
 }
 
@@ -312,13 +464,14 @@ int tm_io_event(int list, uint32_t id, uint32_t value)
 int tm_enc_event(int list, uint32_t id, int32_t delta)
 {
     delta = (int16_t)delta;     /* the encoder module passes deltas as u16 (-1 = 0xFFFF) */
-    if (!st.active || st.shift || id < ENC_FIRST || id >= ENC_FIRST + ENC_COUNT || ctl_is_blocked(id))
+    if (!st.active || st.shift || id < ENC_FIRST || id >= ENC_FIRST + ENC_COUNT || menu_owns(id))
         return 0;
     int enc = (int)(id - ENC_FIRST);
     if (enc == ENC_PROB) {
         if (list != 0)
             return 1;
         tm.prob = (uint8_t)clamp(tm.prob + delta, 0, TM_PROB_MAX);
+        param_save(P_PROB);
     } else {
         if (list != 2)
             return 1;
@@ -330,6 +483,7 @@ int tm_enc_event(int list, uint32_t id, int32_t delta)
         case ENC_GATE:  tm.gate = (uint8_t)clamp(tm.gate + delta * TM_GATE_STEP, TM_GATE_MIN, TM_GATE_MAX); break;
         case ENC_HEADS: tm.heads = (uint8_t)clamp(tm.heads + delta, 0, TM_NUM_HEADS - 1); break;
         }
+        param_save(enc);        /* encoder index == param index for P_PROB..P_HEADS */
     }
     show_param(enc);
     return 1;
@@ -340,6 +494,12 @@ void tm_feat_changed(uint32_t id, uint32_t value)
     switch (id) {
     case FEAT_PAD_MODE:
         set_active(value == PAD_CUSTOM4);
+        if (value == PAD_CUSTOM4) {     /* (re)selected: take the controls back from any menu */
+            st.priority = 1;
+            st.menu_pads = 0;
+            draw_register();
+            draw_notes();
+        }
         break;
     case FEAT_SHIFT:
         st.shift = value != 0;
@@ -354,6 +514,16 @@ void tm_feat_changed(uint32_t id, uint32_t value)
         if (st.active)
             draw_notes();
         break;
+    case PARAM_MAGIC_ID:            /* settings record loaded after start-up */
+        param_sync();
+        break;
+    default:
+        if (feat_get(PARAM_MAGIC_ID) != PARAM_MAGIC)
+            break;                  /* not ours yet: param_sync stores the defaults */
+        for (int p = 0; p < P_COUNT; p++)
+            if (id == param_id[p])
+                param_apply(p, value);
+        break;
     }
 }
 
@@ -361,7 +531,13 @@ void tm_mode_init(void)
 {
     volatile uint32_t *systick_val = (volatile uint32_t *)0xE000E018;
     tm_init(&tm, *systick_val ^ g_clock_ticks);
+    tm.mask |= MASK_ALWAYS_ON;
     st.note = -1;
+    /* Define the persistent params at feature-init time like the stock features do, so
+     * confstore restores them (and re-applies them through the listener) after loading. */
+    for (int p = 0; p < P_COUNT; p++)
+        feat_set(param_id[p], *param_field(p) & 0x7F, PARAM_PERSISTENT);
+    feat_set(PARAM_MAGIC_ID, PARAM_MAGIC, PARAM_PERSISTENT);
 }
 
 /* Main loop (after input handling). */
@@ -370,13 +546,14 @@ void tm_mode_poll(void)
     static uint8_t started;
     if (!started) {
         started = 1;
+        param_sync();
         set_active(feat_get(FEAT_PAD_MODE) == PAD_CUSTOM4);
     }
     if (!st.active)
         return;
     uint16_t menu = 0;
     for (uint32_t id = 0; id < PAD_COUNT; id++)
-        if (ctl_is_blocked(id))
+        if (menu_owns(id))
             menu |= (uint16_t)(1u << id);
     if (menu != st.menu_pads) {
         uint16_t released = st.menu_pads & (uint16_t)~menu;
@@ -386,5 +563,6 @@ void tm_mode_poll(void)
             draw_notes();
         }
     }
-    advance_clock();
+    if (st.playing)
+        advance_clock();
 }

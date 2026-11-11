@@ -125,7 +125,21 @@
   the step (5..95 %) and is always released before the next step (no ties). Encoder 8 follows the encoder mode.
 - Pitch: register value (bits 0..7) picks a note from the full scale (range counts all scale notes); a note
   disabled on the bottom pads is replaced by the closest enabled note in pitch (tie -> lower). All off = rest.
-- Notes: USB MIDI port (g_app_ports[1]), Keys Channel (0x64), velocity 100. Not yet persistent.
+- Top pad 1 = play/pause (yellow; bright = bit 0 is 1). The mode is entered paused. Bit flips (all top pads,
+  pad 1 green then) only while the hold pad is down.
+- Bottom pads 8..14 = scale notes 1..7 (8th note of 8-note scales always on); **pad 15 = hold** (pink): while
+  held the top row shows a frozen copy of the register while it keeps running; a top-pad press flips the bit
+  it showed, at position (pad + steps since freezing) mod length.
+- Menus: controls captured by a menu (ctl_is_blocked) go to the menu - except after (re)selecting pad Custom 4:
+  Scale/Arp screens keep encoders captured after leaving them, so selecting the mode sets a priority flag
+  that wins over captures until any other button (not Shift/pads/encoders) is pressed.
+- Notes: MIDI port (g_app_ports[1]) on the Keys Channel (0x64), velocity 100. **DIN/TRS out:** main() inits a
+  third port (stack sp+0x50, raw-byte mode, serial ring -> USART6 @31250 baud via DMA) and links it to the MIDI
+  port (`port+0x18`, `0x08013EE8`); `midi_send3` walks that chain, so MIDI-port notes also go out on DIN.
+- **Persistence:** feature params 0x50 prob, 0x51 length, 0x52 rate, 0x5A octave, 0x5B range, 0x5D gate,
+  0x5E trigger heads, 0x5F note mask (7 bits), 0x60 marker (0x5A), defined with flags 3 in cfw_init. Marker
+  missing (first boot / older settings record) -> defaults are stored. Ids 0x20..0x3F avoided: they alias the
+  LSBs of 14-bit params 0x00..0x1F.
 
 ## Patches
 

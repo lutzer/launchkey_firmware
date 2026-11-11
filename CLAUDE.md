@@ -22,6 +22,8 @@ Goal: analyse Novation Launchkey Mini MK4 firmware (v1563) and add functions by 
   no initialised .data). Firmware functions: `cfw/fw_api.h` + `cfw/fw_api.ld`; hook sites: `cfw/hooks.txt`.
   `make cfw` (xcrun clang + Homebrew `ld.lld`) -> `tools/mkcave.py` -> `patches/100-cfw-code.patch`,
   `patches/101-cfw-hooks.patch`. `make cfw-test` runs host unit tests (`cfw/test/`).
+  Turing Machine mode = pad mode Custom 4 (`cfw/tm_mode.c`, `cfw/tm_core.c`); see NOTES "Turing Machine mode".
+  A SysEx debug probe existed until commit 350285f (`cfw/probe.c`, `tools/probe_listen.py`) if needed again.
 
 ## Container format (verified: round-trip byte-identical, CRC matches)
 
