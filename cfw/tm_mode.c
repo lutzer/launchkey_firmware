@@ -1,7 +1,8 @@
 /* Turing Machine mode (replaces pad mode Custom 4).
  *
  * Active while feature param 0x1D (pad mode) = 8 and Shift is up:
- *   top pads 0..7      register bits (newest at pad 1), green; dark beyond the loop length.
+ *   top pads 0..7      register bits (newest at pad 1), green, the loop's first step yellow; dark
+ *                      beyond the loop length.
  *                      While Function is held both rows show bits 1..16 and a press flips the bit.
  *   bottom pads 8..15  scale notes (pad 9 = root, ...), white; press toggles (Scale on only);
  *                      pads beyond the scale size are dark, all eight lit with Scale off
@@ -56,6 +57,8 @@
 
 #define GREEN_ON          0x00FF00
 #define GREEN_DIM         0x001800
+#define YELLOW_ON         0xFFFF00    /* the first step played after a rewind (Start / Play reset) */
+#define YELLOW_DIM        0x181800
 #define WHITE_ON          0xFFFFFF
 #define WHITE_DIM         0x181818
 #define LED_OFF           0x000000
@@ -238,11 +241,15 @@ static void draw_register(void)
         return;
     uint16_t reg = st.hold ? st.frozen_reg : tm.reg;
     uint32_t pads = st.hold ? PAD_COUNT : PAD_ROW;  /* held: bits 9..16 on the bottom row */
+    /* the frozen view is frozen_steps behind the register */
+    uint32_t start = (uint32_t)tm_start_bit(&tm, st.pos - (st.hold ? st.frozen_steps % tm.len : 0));
     for (uint32_t i = 0; i < pads; i++) {
         int bit = reg >> i & 1;
         uint32_t rgb;
         if (i >= tm.len)
             rgb = LED_OFF;
+        else if (i == start)
+            rgb = bit ? YELLOW_ON : YELLOW_DIM;
         else
             rgb = bit ? GREEN_ON : GREEN_DIM;
         led(i, rgb);
@@ -648,6 +655,7 @@ int tm_enc_event(int list, uint32_t id, int32_t delta)
         switch (enc) {
         case P_LEN:
             tm.len = (uint8_t)clamp(tm.len + delta, TM_LEN_MIN, TM_LEN_MAX);
+            tm_tile(&tm);
             st.pos = (uint8_t)(st.pos % tm.len);
             st.rot = (uint8_t)(st.rot % tm.len);
             draw_register();

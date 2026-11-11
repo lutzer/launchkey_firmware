@@ -175,7 +175,7 @@
 
 ## Turing Machine mode (cfw, pad mode Custom 4)
 
-- `cfw/tm_mode.c` + `cfw/tm_core.c`. Top pads = register bits 0..7 (bit 0 newest = pad 1, green; press flips),
+- `cfw/tm_mode.c` + `cfw/tm_core.c`. Top pads = register bits 0..7 (bit 0 newest = pad 1, green; press flips); yellow = the bit of the first step played after a rewind (Start/Play reset): `tm_start_bit` = (len - 1 + pos) % len, rotation included since it rotates the register under pos; the Function view subtracts frozen_steps,
   bottom pads = scale notes (white; press toggles), encoders 1..8 = probability, length, rate (4/1..1/32,
   CW = faster), range, gate, trigger heads, rotate, velocity; octave on the up/down arrows. Trigger modes (tm_heads, dense -> sparse): Every, OR(0,1/3,2/3), OR(0,1/2), 0,
   XOR(0,1/2), AND(0,1/2), AND(0,1/2)&OR(1/4,3/4), AND(0,1/3,2/3); a head at fraction f reads bit f*len (min 1
@@ -188,6 +188,9 @@
   hold**, **up 34 / down 35 = octave** (stored 0..8, shown -4..+4, 4 = 0 = base MIDI 48 like the keyboard default); encoder 7 = rotate (register rotated while the step count since the
   loop start stays, so MIDI Start rewinds to a shifted start; loop start = mode entry or last Start). Their LEDs are driven through the same override layer (white).
   While Function is held both rows show register bits 0..15 (frozen) and pad presses flip them.
+  Flips, rotate, Start rewind and length changes tile the loop over all 16 bits (`tm_tile`: bit k = bit k - len,
+  the locked state): pitch reads bits 0..7 and velocity 4..10, beyond short loops, so stale copies there made
+  edits fade in over several steps.
   The keyboard-octave popup captures the arrows (ctl_is_blocked 34/35), so the four mode buttons only yield
   to a menu that has captured pad 0 too (Settings etc.).
 - Bottom pads 8..15 = scale notes 1..8 (pad 15 only for 8-note scales; note 8 stored inverted in 0x62). Hold: while

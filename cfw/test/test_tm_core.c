@@ -140,13 +140,62 @@ static void test_flip(void)
     tm_t tm;
     tm_init(&tm, 11);
     tm.len = 4; tm.reg = 0x0000;
-    CHECK(tm_flip(&tm, 0) && tm.reg == 0x0001, "flip bit 0");
-    CHECK(tm_flip(&tm, 3) && tm.reg == 0x0009, "flip bit 3");
-    CHECK(!tm_flip(&tm, 4) && tm.reg == 0x0009, "bit 4 is outside length 4");
-    CHECK(tm_flip(&tm, 0) && tm.reg == 0x0008, "flip back");
+    CHECK(tm_flip(&tm, 0) && tm.reg == 0x1111, "flip bit 0 (tiled over the register)");
+    CHECK(tm_flip(&tm, 3) && tm.reg == 0x9999, "flip bit 3");
+    CHECK(!tm_flip(&tm, 4) && tm.reg == 0x9999, "bit 4 is outside length 4");
+    CHECK(tm_flip(&tm, 0) && tm.reg == 0x8888, "flip back");
+    tm.len = 3; tm.reg = 0xFFF8;
+    CHECK(tm_flip(&tm, 1) && tm.reg == 0x2492, "len 3: copies at 1 + 3k");
     for (int i = 0; i + 1 < TM_NUM_DIVS; i++)
         CHECK(tm_div_ticks[i] > tm_div_ticks[i + 1], "rates must get faster with the index");
     CHECK(tm_div_ticks[TM_DIV_DEFAULT] == 6, "default rate is 1/16");
+}
+
+/* After a flip the locked loop repeats exactly from the next step on: pitch (bits 0..7) and
+ * velocity (bits 4..10) must not wait for stale copies above the loop to shift out. */
+static void test_flip_instant(void)
+{
+    for (int len = TM_LEN_MIN; len <= TM_LEN_MAX; len++)
+        for (int bit = 0; bit < len; bit++) {
+            tm_t tm;
+            tm_init(&tm, 900 + len * 16 + bit);
+            tm.len = len; tm.prob = TM_PROB_MAX; tm.range = TM_RANGE_MAX; tm.vel = TM_VEL_MAX;
+            for (int i = 0; i < 37; i++)
+                tm_step(&tm);
+            tm_flip(&tm, bit);
+            int note[2 * TM_LEN_MAX], vel[2 * TM_LEN_MAX];
+            for (int i = 0; i < 2 * len; i++) {
+                tm_step(&tm);
+                note[i] = tm_note(&tm, 0, MAJOR, 1);
+                vel[i] = tm_velocity(&tm);
+            }
+            for (int i = 0; i < len; i++) {
+                CHECK(note[i] == note[i + len], "len %d flip %d: note of step %d changes later", len, bit, i);
+                CHECK(vel[i] == vel[i + len], "len %d flip %d: velocity of step %d changes later", len, bit, i);
+            }
+        }
+}
+
+/* The marked bit is the one played first after a rewind: a lone set bit there must reach bit 0
+ * after tm_rewind(pos) + one step. */
+static void test_start_bit(void)
+{
+    for (int len = TM_LEN_MIN; len <= TM_LEN_MAX; len++)
+        for (int pos = 0; pos < len; pos++) {
+            tm_t tm;
+            tm_init(&tm, 1);
+            tm.len = len; tm.prob = TM_PROB_MAX;
+            int b = tm_start_bit(&tm, pos);
+            CHECK(b >= 0 && b < len, "len %d pos %d: start bit %d outside the loop", len, pos, b);
+            tm.reg = (uint16_t)(1u << b);
+            tm_rewind(&tm, pos);
+            tm_step(&tm);
+            CHECK((tm.reg & 1) && !(tm.reg & ((1u << len) - 2)), "len %d pos %d: bit %d is not played first", len, pos, b);
+        }
+    tm_t tm;
+    tm_init(&tm, 1);
+    tm.len = 5;
+    CHECK(tm_start_bit(&tm, -3) == 1, "negative pos wraps");
 }
 
 static void test_rewind(void)
@@ -162,6 +211,8 @@ static void test_rewind(void)
                 tm_step(&tm);
             tm_rewind(&tm, n);
             CHECK((tm.reg & mask) == (start & mask), "rewind len %d after %d steps", len, n);
+            for (int k = len; k < 16; k++)
+                CHECK((tm.reg >> k & 1) == (tm.reg >> (k - len) & 1), "rewind len %d: bit %d not tiled", len, k);
         }
 }
 
@@ -260,6 +311,8 @@ static void test_gate(void)
 int main(void)
 {
     test_flip();
+    test_flip_instant();
+    test_start_bit();
     test_rewind();
     test_velocity();
     test_gate();

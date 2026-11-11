@@ -29,7 +29,7 @@ value picks a note from the current scale, and trigger heads decide whether a st
 
 | Control | Function |
 |---|---|
-| Top row (green) | Register bits 1–8, moving one pad to the right per step. Dark = beyond the loop length. |
+| Top row (green) | Register bits 1–8, moving one pad to the right per step. The **yellow** pad is the step the sequence restarts from (MIDI Start / reset), so it moves along too and follows Rotate; also while Function is held. Dark = beyond the loop length. |
 | Bottom row (white) | **Scale notes** (pad 1 = root, pad 8 = 8th note of 8-note scales). Press to switch a note on (bright) or off (dim); pads beyond the scale are dark. A disabled note is replaced by the closest enabled note. With Scale off all eight pads are lit and all 12 semitones are used. |
 | **>** (above Function) | **Play / pause** (lit while playing). |
 | **Function** (next to the pads) | **Hold.** While held, both rows show all 16 register bits (top = 1–8, bottom = 9–16), frozen on screen while the sequence keeps running, and pressing a pad **flips that bit**. |

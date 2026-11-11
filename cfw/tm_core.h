@@ -78,12 +78,21 @@ uint16_t tm_gate_ticks(const tm_t *tm);
  * vel % of the way (0 = always TM_VEL_BASE, 100 = window only). */
 int tm_velocity(const tm_t *tm);
 
-/* Flip register bit i (0 = newest) if it is inside the loop; returns 1 if flipped. */
+/* Copy the loop (bits 0..len-1) over the bits above it: bit k = bit k - len, the state a locked
+ * loop keeps by itself. Pitch (bits 0..7) and velocity (4..10) read beyond short loops, so every
+ * edit tiles to be heard from the next step on instead of after the stale copies shifted out. */
+void tm_tile(tm_t *tm);
+
+/* Flip register bit i (0 = newest) if it is inside the loop and tile; returns 1 if flipped. */
 int tm_flip(tm_t *tm, int i);
 
 /* Undo n locked steps: rotate the loop (bits 0..len-1) back by n, so the register is where
- * the loop started n steps ago (flipped bits stay flipped). */
+ * the loop started n steps ago (flipped bits stay flipped), and tile. */
 void tm_rewind(tm_t *tm, int n);
+
+/* Register bit holding the first step played after tm_rewind(tm, pos) (pos = steps since the
+ * loop start): the rewind puts it back at bit len - 1, the next tm_step shifts it into bit 0. */
+int tm_start_bit(const tm_t *tm, int pos);
 
 /* Number of notes in a scale table entry (= number of usable lower pads). */
 int tm_scale_size(const uint8_t semis[12]);

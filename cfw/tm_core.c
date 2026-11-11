@@ -94,15 +94,24 @@ int tm_velocity(const tm_t *tm)
     return v < 1 ? 1 : v > 127 ? 127 : v;
 }
 
+void tm_tile(tm_t *tm)
+{
+    uint32_t loop = tm->reg & ((1u << tm->len) - 1);
+    uint32_t r = loop;
+    for (int k = tm->len; k < 16; k += tm->len)
+        r |= loop << k;
+    tm->reg = (uint16_t)r;
+}
+
 void tm_rewind(tm_t *tm, int n)
 {
     n %= tm->len;
-    if (n == 0)
-        return;
     uint32_t mask = (1u << tm->len) - 1;
     uint32_t loop = tm->reg & mask;
-    loop = (loop >> n | loop << (tm->len - n)) & mask;
-    tm->reg = (uint16_t)((tm->reg & ~mask) | loop);
+    if (n)
+        loop = (loop >> n | loop << (tm->len - n)) & mask;
+    tm->reg = (uint16_t)loop;
+    tm_tile(tm);
 }
 
 int tm_flip(tm_t *tm, int i)
@@ -110,7 +119,13 @@ int tm_flip(tm_t *tm, int i)
     if (i < 0 || i >= tm->len)
         return 0;
     tm->reg ^= (uint16_t)(1u << i);
+    tm_tile(tm);
     return 1;
+}
+
+int tm_start_bit(const tm_t *tm, int pos)
+{
+    return ((tm->len - 1 + pos) % tm->len + tm->len) % tm->len;
 }
 
 int tm_scale_size(const uint8_t semis[12])
