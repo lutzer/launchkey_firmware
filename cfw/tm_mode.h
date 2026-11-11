@@ -19,5 +19,10 @@ int tm_enc_event(int list, uint32_t id, int32_t delta);
 #define TM_CONTINUE  2
 #define TM_STOP      3
 void tm_transport(int event);
+/* Play button (main loop): start from the first step / stop */
+int tm_playing(void);
+/* after the Shift overlay drew its LEDs: colour the pad that selects the mode */
+void tm_shift_leds(void);
+void tm_play_button(int start);
 
 #endif

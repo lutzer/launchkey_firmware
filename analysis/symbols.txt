@@ -143,3 +143,10 @@
 0x20001094 g_arp_view                    data
 0x08024c24 chordmap_press
 0x08024d0c chordmap_release
+0x08022710 play_press
+0x08022752 transport_daw_changed
+0x2000f480 g_transport                   data
+0x08022a88 shift_overlay_leds
+0x08022a5c shift_led
+0x0802a612 led_set
+0x0802b0d2 shift_leds_tail

@@ -76,11 +76,11 @@ static void test_scale_notes(void)
                 int note = note_at(&tm, v, root, MAJOR, 1);
                 int rel = note - root - 36;
                 CHECK(note >= 36 + root && MAJOR[rel % 12], "note %d not in major (root %d)", note, root);
-                CHECK(rel < 12 * ((range - 1) / 7 + 1), "note %d outside range %d", note, range);
+                CHECK(rel >= 0 && rel <= range, "note %d outside range %d", note, range);   /* root always fits */
             }
 
     tm.mask = 0x05;                               /* pads 1 and 3: root and 3rd -> only C and E */
-    tm.range = 21; tm.octave = 0;
+    tm.range = 36; tm.octave = 0;
     for (int v = 0; v < 256; v++) {
         int pc = note_at(&tm, v, 0, MAJOR, 1) % 12;
         CHECK(pc == 0 || pc == 4, "mask 0x05: v %d gave pitch class %d", v, pc);
@@ -97,17 +97,21 @@ static void test_closest(void)
 {
     tm_t tm;
     tm_init(&tm, 9);
-    tm.octave = 0; tm.range = 7;                  /* idx = v * 7 / 256 -> one octave of C major */
+    tm.octave = 0; tm.range = 15;                 /* target = v * 16 / 256 = v / 16 semitones */
     tm.mask = 0x11;                               /* C (pad 1) and G (pad 5) */
     CHECK(note_at(&tm, 0, 0, MAJOR, 1) == 0, "C stays C");
-    CHECK(note_at(&tm, 40, 0, MAJOR, 1) == 0, "D (2) -> C (dist 2) not G (dist 5)");
-    CHECK(note_at(&tm, 80, 0, MAJOR, 1) == 7, "E (4) -> G (dist 3) not C (dist 4)");
-    CHECK(note_at(&tm, 115, 0, MAJOR, 1) == 7, "F (5) -> G");
-    CHECK(note_at(&tm, 220, 0, MAJOR, 1) == 12, "B (11) -> C an octave up (dist 1)");
+    CHECK(note_at(&tm, 2 * 16, 0, MAJOR, 1) == 0, "D (2) -> C (dist 2) not G (dist 5)");
+    CHECK(note_at(&tm, 4 * 16, 0, MAJOR, 1) == 7, "E (4) -> G (dist 3) not C (dist 4)");
+    CHECK(note_at(&tm, 5 * 16, 0, MAJOR, 1) == 7, "F (5) -> G");
+    CHECK(note_at(&tm, 11 * 16, 0, MAJOR, 1) == 12, "B (11) -> C an octave up (dist 1)");
+    CHECK(note_at(&tm, 15 * 16, 0, MAJOR, 1) == 12, "15 -> C (12), the closest inside the range");
+    tm.range = 11;                                /* C' outside: B -> G, the closest inside */
+    CHECK(note_at(&tm, 255, 0, MAJOR, 1) == 7, "11 -> G when C' is outside the range");
+    tm.range = 15;
     tm.mask = 0x05;                               /* C and E */
-    CHECK(note_at(&tm, 40, 0, MAJOR, 1) == 0, "D is between C and E: tie -> lower (C)");
+    CHECK(note_at(&tm, 2 * 16, 0, MAJOR, 1) == 0, "D is between C and E: tie -> lower (C)");
     tm.mask = 0x01;                               /* root only: every step is a C, none skipped */
-    tm.range = 21;
+    tm.range = 36;
     for (int v = 0; v < 256; v++)
         CHECK(note_at(&tm, v, 0, MAJOR, 1) % 12 == 0, "root-only mask must always give C");
 }
@@ -117,7 +121,7 @@ static void test_scale_off(void)
     tm_t tm; int seen[12] = {0};
     tm_init(&tm, 5);
     tm.mask = 0x00;                               /* ignored with Scale off */
-    tm.range = 12; tm.octave = 4;
+    tm.range = 11; tm.octave = 4;                 /* one semitone per 256/12 values */
     for (int v = 0; v < 256; v++)
         seen[note_at(&tm, v, 0, MAJOR, 0) % 12]++;
     for (int i = 0; i < 12; i++)

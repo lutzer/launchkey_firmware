@@ -77,6 +77,30 @@ void cfw_midi_stop(void)
     tm_transport(TM_STOP);
 }
 
+/* Hook: the Play button handler in the press dispatcher. Play starts / stops Turing Machine mode;
+ * the stock MIDI Start / Stop output (standalone only) is synced to it first, so they agree.
+ */
+#define CTL_PLAY 0x48
+
+void cfw_play_press(uint32_t id)
+{
+    if (id != CTL_PLAY) {
+        play_press(id);
+        return;
+    }
+    int start = !tm_playing();
+    g_transport.running = (uint8_t)!start;
+    play_press(id);
+    tm_play_button(start);
+}
+
+/* Hook: last call of the Shift overlay LED refresh, after it drew the mode pads. */
+void cfw_shift_leds(void)
+{
+    shift_leds_tail();
+    tm_shift_leds();
+}
+
 /* ---- input dispatchers: replace the stock ones (see cfw/hooks.txt) ---- */
 
 typedef void (*io2_fn)(uint32_t, uint32_t);

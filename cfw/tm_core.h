@@ -11,7 +11,7 @@
 #define TM_OCT_MAX     8     /* octave 4 = 0 shown: -4..+4 */
 #define TM_OCT_ZERO    4
 #define TM_RANGE_MIN   1
-#define TM_RANGE_MAX   36    /* note range in playable-note steps */
+#define TM_RANGE_MAX   36    /* pitch range in semitones above the root (12 = one octave) */
 #define TM_NUM_DIVS    11
 #define TM_GATE_MIN    5     /* gate length in % of a step; never reaches the next step */
 #define TM_GATE_MAX    95
@@ -99,8 +99,8 @@ int tm_scale_size(const uint8_t semis[12]);
 
 /* MIDI note for the current register value, or -1 for a rest (no note enabled).
  * semis = 12-byte scale table entry (non-zero = note in scale). The value picks a note from
- * the full scale (range counts all scale notes); a note disabled in tm->mask is replaced by
- * the closest enabled note in pitch (tie -> lower). scale_on = 0: all 12 semitones, mask ignored. */
+ * 0..range semitones above the root, quantised to the closest enabled note (tie -> lower,
+ * inside the range when possible); tm->mask selects the enabled scale notes. scale_on = 0: all 12 semitones, mask ignored. */
 int tm_note(const tm_t *tm, int root, const uint8_t semis[12], int scale_on);
 
 #endif

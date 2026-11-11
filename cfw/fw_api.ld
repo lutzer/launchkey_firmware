@@ -85,3 +85,6 @@ PROVIDE(arp_view_close      = 0x0802388C | 1);
 PROVIDE(arp_led_set         = 0x0802374C | 1);
 PROVIDE(arp_popup_title     = 0x080236C0 | 1);
 PROVIDE(g_arp_view          = 0x20001094);
+PROVIDE(play_press          = 0x08022710 | 1);
+PROVIDE(g_transport         = 0x2000F480);
+PROVIDE(shift_leds_tail     = 0x0802B0D2 | 1);

@@ -20,7 +20,8 @@ firmware version 1.3 build 1563. It adds:
 ## Turing Machine mode
 
 Select it like any pad mode: **hold Shift and press the 8th pad of the bottom row (pad mode Custom 4)**.
-The display shows "Turing Machine" with short labels of the eight encoders. The mode starts **paused**.
+The display shows "Turing Machine" with short labels of the eight encoders. The sequencer starts **stopped**;
+press **Play** to start it.
 
 A 16-bit shift register loops and, depending on the probability, flips the bit that comes round again. Its
 value picks a note from the current scale, and trigger heads decide whether a step plays a note.
@@ -31,7 +32,8 @@ value picks a note from the current scale, and trigger heads decide whether a st
 |---|---|
 | Top row (green) | Register bits 1–8, moving one pad to the right per step. The **yellow** pad is the step the sequence restarts from (MIDI Start / reset), so it moves along too and follows Rotate; also while Function is held. Dark = beyond the loop length. |
 | Bottom row (white) | **Scale notes** (pad 1 = root, pad 8 = 8th note of 8-note scales). Press to switch a note on (bright) or off (dim); pads beyond the scale are dark. A disabled note is replaced by the closest enabled note. With Scale off all eight pads are lit and all 12 semitones are used. |
-| **>** (above Function) | **Play / pause** (lit while playing). |
+| **Play** (transport) | **Start / stop** the sequencer, in every pad mode. Start begins at the first step of the loop (the yellow pad) on the next clock tick. Without a DAW connection Play also sends MIDI Start / Stop as usual. |
+| **>** (above Function) | **Enable / disable** the sequencer (bright = enabled). Disabled **mutes** its notes; everything else keeps going (clock, Play, MIDI Start / Stop, the pattern on the pads), so enabling it again brings the notes back in time. Saved. |
 | **Function** (next to the pads) | **Hold.** While held, both rows show all 16 register bits (top = 1–8, bottom = 9–16), frozen on screen while the sequence keeps running, and pressing a pad **flips that bit**. |
 | **Up / Down arrows** (next to the pads) | **Octave** −4 to +4 (0 = lowest note MIDI 48 + root, the keyboard's default octave; an arrow is dim when the end is reached). |
 
@@ -42,7 +44,7 @@ value picks a note from the current scale, and trigger heads decide whether a st
 | 1 | Probability | right = locked loop, middle = random, left = locked and inverted (twice as long) |
 | 2 | Length | 2–16 steps |
 | 3 | Rate (turn right = faster) | 4/1, 2/1, 1/1, 1/2, 1/4, 1/4T, 1/8, 1/8T, 1/16, 1/16T, 1/32 |
-| 4 | Range | 1–36 scale notes |
+| 4 | Range | +1 … +36 semitones above the root (+12 = one octave, +24 = two, +36 = three); the register picks a pitch in that span and it is moved to the closest enabled scale note (staying inside the span when possible) |
 | 5 | Gate length | 5–95 % of a step (notes are never tied) |
 | 6 | Trigger heads (turn right = sparser) | **Every** step · **OR 3** (~88 %) · **OR 2** (~75 %) · **Bit 1** (~50 %, like the module) · **XOR** (~50 %, different rhythm) · **AND 2** (~25 %) · **AND 2+** (~19 %) · **AND 3** (~12 %). The heads sit at fixed fractions of the loop (start, ½, ⅓ and ⅔, ¼ and ¾) and combine what they read, so the rhythm loops and mutates with the pattern at any length. |
 | 7 | Rotate | Shifts the loop one step per detent without changing bits, i.e. chooses the step that MIDI Start returns to (shown as "Step n") |
@@ -54,13 +56,19 @@ Turning an encoder shows its value on the display.
 
 - **Tempo** follows the device: the internal tempo, or external MIDI clock when connected.
 - **MIDI transport:** Start goes back to the first step of the loop (set with encoder 7) and plays it on the
-  next clock tick (the downbeat), Continue resumes, Stop pauses. **>** still works as well.
+  next clock tick (the downbeat), Continue resumes, Stop pauses – also while another pad mode is selected or the sequencer is disabled.
+  The **Play** button does the same as Start / Stop.
+- **Running in the background:** once started, the sequencer keeps playing after you switch to
+  another pad mode; its pads, buttons and popups only show while Turing Machine mode is selected.
 - **Notes** go out on the **Turing Channel** via USB MIDI and the TRS MIDI out (velocity: see encoder 8). Set it in
   **Settings**: it is the last item, after "Power On Modes" – use the down arrow to get there (default 1).
 - **All parameters and the scale-note selection are saved** and restored at power-on (about 3 seconds after
-  the last change). The running pattern and play/pause are not saved.
+  the last change). The running pattern and start/stop are not saved;
+  enable/disable is.
 - **Shift still works:** Shift + pads selects pad and encoder modes as usual, and menus (Settings, Scale, Arp)
   get the encoders while they are open. If a Scale or Arp screen keeps the encoders, select pad Custom 4 again.
+- **Shift:** the pad that selects Turing Machine mode (8th pad, bottom row) is **bright green** while the
+  sequencer is enabled and **dark green** while it is disabled (muted).
 - **Shift + turn an encoder** shows the current value of that Turing Machine parameter without changing it.
 
 ---

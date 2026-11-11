@@ -129,6 +129,7 @@ void feat_set_value_volatile(uint32_t id, uint32_t value);
  * close_views, set shown, view_changed, ui_popup_begin). Popup: arp_popup_title(key, string id)
  * opens the popup with a title, popup_field_text(key, field, str) sets its value line. */
 #define UI_MENU_ARP    1
+#define UI_MENU_SHIFT  0xE   /* Shift overlay: mode-select pads (bottom row = pad modes) */
 #define UI_MENU_SCALE  0xF
 uint32_t ui_menu_owns(uint32_t id, uint32_t menu);
 void ui_close_views(void);
@@ -163,5 +164,20 @@ void arp_press(uint32_t id);
 void arp_view_close(void);
 void arp_led_set(uint32_t id, uint32_t rgb);     /* only if the arp view owns the control */
 void arp_popup_title(uint32_t key, uint32_t str_id);
+
+/* Play button (control 0x48): in standalone mode (no DAW connection) the stock press handler sends
+ * MIDI Start (running 0) or Stop (running 1) on its port and toggles running; it ignores other ids. */
+typedef struct {
+    uint8_t  standalone;    /* no DAW connection: Play (and 0x49) captured */
+    uint8_t  running;       /* last sent: 1 = Start, 0 = Stop */
+    uint8_t  pad[2];
+    midi_port_t *port;
+} transport_t;
+extern volatile transport_t g_transport;
+void play_press(uint32_t id);
+
+/* Shift overlay (menu 0xE) LED refresh 0x08022A88: bottom-row pads = pad modes (current 0x0086FF,
+ * others 0x001642); its last call is shift_leds_tail (no args). */
+void shift_leds_tail(void);
 
 #endif

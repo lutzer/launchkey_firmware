@@ -30,7 +30,7 @@ void tm_init(tm_t *tm, uint32_t seed)
     tm->prob = 96;
     tm->div = TM_DIV_DEFAULT;
     tm->octave = TM_OCT_ZERO;
-    tm->range = 8;
+    tm->range = 12;
     tm->mask = 0xFF;
     tm->gate = 50;
     tm->heads = 0;          /* every step */
@@ -136,40 +136,33 @@ int tm_scale_size(const uint8_t semis[12])
     return n;
 }
 
-/* Note for the current register value. The value picks a note from the full scale
- * (range counts all scale notes); a disabled note is replaced by the closest enabled
- * one in pitch (tie -> lower). */
+/* Note for the current register value. The value picks a pitch 0..range semitones above
+ * the root, which is quantised to the closest enabled scale note (tie -> lower), staying
+ * inside 0..range when such a note exists. */
 int tm_note(const tm_t *tm, int root, const uint8_t semis[12], int scale_on)
 {
-    uint8_t notes[12];
-    uint16_t enabled = 0;
+    uint16_t enabled = 0;       /* bit = semitone above the root */
     int n = 0;
     for (int i = 0; i < 12; i++) {
         if (scale_on && !semis[i])
             continue;
         if (!scale_on || (n < TM_PADS && (tm->mask >> n & 1)))
-            enabled |= (uint16_t)(1u << n);
-        notes[n++] = (uint8_t)i;
+            enabled |= (uint16_t)(1u << i);
+        n++;
     }
     if (!enabled)
         return -1;
 
-    int idx = (tm->reg & 0xFF) * tm->range / 256;
-    int target = 12 * (idx / n) + notes[idx % n];   /* semitones above root + base octave */
-    int best = target;
-    if (!(enabled >> (idx % n) & 1)) {
-        int best_dist = 1000;
-        for (int oct = idx / n - 1; oct <= idx / n + 1; oct++)
-            for (int j = 0; j < n; j++) {
-                if (!(enabled >> j & 1))
-                    continue;
-                int p = 12 * oct + notes[j];
-                int dist = p > target ? p - target : target - p;
-                if (dist < best_dist || (dist == best_dist && p < best)) {
-                    best = p;
-                    best_dist = dist;
-                }
-            }
+    int target = (tm->reg & 0xFF) * (tm->range + 1) / 256;     /* 0..range */
+    int best = 0, best_cost = 100000;
+    for (int p = -12; p <= tm->range + 12; p++) {
+        if (!(enabled >> ((p + 12) % 12) & 1))
+            continue;
+        int cost = (p > target ? p - target : target - p) + (p < 0 || p > tm->range ? 1000 : 0);
+        if (cost < best_cost) {     /* ascending p: a tie keeps the lower note */
+            best = p;
+            best_cost = cost;
+        }
     }
     int note = 12 * tm->octave + root + best;
     while (note > 127)

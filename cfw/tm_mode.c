@@ -8,14 +8,18 @@
  *                      pads beyond the scale size are dark, all eight lit with Scale off
  *   Function (17)      hold: while held the top row is frozen on screen (the register keeps
  *                      running) and top-pad presses flip the bit they showed
- *   > (16)             play/pause (above Function); the mode starts paused
+ *   > (16)             enable/disable (above Function, saved): disabled mutes the notes; the
+ *                      sequencer keeps following clock, transport and Play (pads keep moving)
+ *   Play (0x48)        start from the first step / stop, in every mode (cfw_play_press); the
+ *                      sequencer starts stopped
  *   up/down (34/35)    octave
  *   encoders 1..8      probability, length, rate, range, gate length, trigger heads, rotate,
  *                      velocity depth (velocity from register bits 4..10, see tm_velocity)
  *                      (rotate shifts the loop without flipping bits, i.e. moves the step that
  *                      MIDI Start returns to)
- * MIDI transport: Start = back to the first step, which plays on the next clock tick (the
- * downbeat), Continue = resume, Stop = pause.
+ * MIDI transport (also while another pad mode is shown or disabled): Start = back to the first
+ * step, which plays on the next clock tick (the downbeat), Continue = resume, Stop = pause.
+ * Outside the mode the LEDs and popups are left to the stock firmware.
  * Parameters and the note mask are saved as persistent feature params (see PARAM_*).
  * A step plays a note depending on the trigger mode (tm_heads: every step, OR / AND / XOR of
  * delayed register bits, ~88 % .. ~12 % dense); every note lasts the gate length and
@@ -39,6 +43,7 @@
 #define FEAT_SHIFT        0x3F
 #define CTL_SHIFT         25
 #define PAD_CUSTOM4       8
+#define PAD_SELECT        15          /* Shift + this pad selects pad Custom 4 */
 
 #define PAD_COUNT         16
 #define PAD_ROW           8
@@ -48,7 +53,7 @@
 #define ENC_ROTATE        6           /* encoder 7; encoders 1..6 = params P_PROB..P_HEADS */
 #define ENC_VEL           7           /* encoder 8 */
 /* Buttons next to the pads (ids from the DAW-mode CC map at 0x0801C180: CC 104..107). */
-#define BTN_PLAY          16          /* ">" (scene launch), above Function */
+#define BTN_ENABLE        16          /* ">" (scene launch), above Function */
 #define BTN_HOLD          17          /* Function */
 #define BTN_OCT_UP        34
 #define BTN_OCT_DOWN      35
@@ -57,6 +62,7 @@
 
 #define GREEN_ON          0x00FF00
 #define GREEN_DIM         0x001800
+#define GREEN_DARK        0x000C00    /* Shift overlay: the mode pad while disabled */
 #define YELLOW_ON         0xFFFF00    /* the first step played after a rewind (Start / Play reset) */
 #define YELLOW_DIM        0x181800
 #define WHITE_ON          0xFFFFFF
@@ -65,9 +71,10 @@
 
 /* Persistent feature params (free ids >= 0x40: ids 0x20..0x3F double as 14-bit LSBs). */
 /* Feature values are 7 bits: P_MASK holds notes 1..7, P_NOTE8_OFF the 8th note inverted (records
- * from before it existed read 0 = on, as the 8th note used to be always on). */
-enum { P_PROB, P_LEN, P_RATE, P_RANGE, P_GATE, P_HEADS, P_OCT, P_MASK, P_CHAN, P_NOTE8_OFF, P_VEL, P_COUNT };
-static const uint8_t param_id[P_COUNT] = {0x50, 0x51, 0x52, 0x5B, 0x5D, 0x5E, 0x5A, 0x5F, TM_CHANNEL_PARAM, 0x62, 0x63};
+ * from before it existed read 0 = on, as the 8th note used to be always on). P_ENABLE is stored
+ * inverted too (0 = enabled), for the same reason. */
+enum { P_PROB, P_LEN, P_RATE, P_RANGE, P_GATE, P_HEADS, P_OCT, P_MASK, P_CHAN, P_NOTE8_OFF, P_VEL, P_ENABLE, P_COUNT };
+static const uint8_t param_id[P_COUNT] = {0x50, 0x51, 0x52, 0x5B, 0x5D, 0x5E, 0x5A, 0x5F, TM_CHANNEL_PARAM, 0x62, 0x63, 0x41};
 #define PARAM_MAGIC_ID    0x60        /* != PARAM_MAGIC: stored values are not ours -> defaults */
 #define PARAM_MAGIC       0x5A
 #define PARAM_PERSISTENT  3           /* definition flags: defined | persistent */
@@ -84,7 +91,8 @@ static struct {
     uint32_t last_clock;
     uint32_t owned;          /* controls whose current press belongs to this mode (slot bits) */
     uint8_t hold;            /* Function down: top row frozen, bits can be flipped */
-    uint8_t playing;         /* play/pause (">"); off when the mode is entered */
+    uint8_t playing;         /* transport: Play button / MIDI Start..Stop, in every pad mode */
+    uint8_t enabled;         /* ">": notes out; disabled = muted, everything else keeps running */
     uint8_t priority;        /* set by (re)selecting pad Custom 4: our controls win over a menu
                               * (Scale/Arp screens keep them captured); cleared by any other
                               * button press, i.e. whenever a menu may be opened */
@@ -150,6 +158,7 @@ static uint32_t param_value(int p)
     case P_HEADS: return tm.heads;
     case P_CHAN:  return midi_channel;
     case P_VEL:   return tm.vel;
+    case P_ENABLE: return !st.enabled;
     case P_MASK:  return tm.mask & 0x7F;
     default:      return !(tm.mask & NOTE8_BIT);
     }
@@ -171,6 +180,7 @@ static void param_apply(int p, uint32_t v)
     case P_NOTE8_OFF: tm.mask = (uint8_t)((tm.mask & 0x7F) | (v ? 0 : NOTE8_BIT)); break;
     case P_CHAN:  midi_channel = (uint8_t)(v & 0x0F); break;
     case P_VEL:   tm.vel = (uint8_t)clamp((int)v, 0, TM_VEL_MAX); break;
+    case P_ENABLE: st.enabled = v == 0; break;     /* tm_mode_poll releases a muted note */
     }
 }
 
@@ -216,18 +226,18 @@ static void note_off(void)
 
 static void note_on(int note)
 {
-    if (note < 0 || !g_app_ports[MIDI_PORT])
+    if (note < 0 || !st.enabled || !g_app_ports[MIDI_PORT])     /* disabled = muted */
         return;
     st.channel = midi_channel;
     midi_send3(g_app_ports[MIDI_PORT], 0x90 | st.channel, (uint32_t)note, (uint32_t)tm_velocity(&tm));
     st.note = (int8_t)note;
 }
 
-/* Pads captured by a menu (e.g. Settings) are left to the menu; tm_mode_poll redraws
- * them once the menu lets go. */
+/* Only while the mode is shown (it keeps running in the background). Pads captured by a menu
+ * (e.g. Settings) are left to the menu; tm_mode_poll redraws them once the menu lets go. */
 static void led(uint32_t id, uint32_t rgb)
 {
-    if (id < PAD_COUNT && (st.menu_pads >> id & 1))
+    if (!st.active || (id < PAD_COUNT && (st.menu_pads >> id & 1)))
         return;
     led_override_color(id, rgb);
     led_override(id, LED_STATIC);
@@ -278,7 +288,7 @@ static void draw_buttons(void)
 {
     if (st.shift)
         return;
-    led(BTN_PLAY, st.playing ? WHITE_ON : WHITE_DIM);
+    led(BTN_ENABLE, st.enabled ? WHITE_ON : WHITE_DIM);
     led(BTN_HOLD, st.hold ? WHITE_ON : WHITE_DIM);
     led(BTN_OCT_UP, tm.octave < TM_OCT_MAX ? WHITE_ON : WHITE_DIM);
     led(BTN_OCT_DOWN, tm.octave > 0 ? WHITE_ON : WHITE_DIM);
@@ -291,12 +301,14 @@ static void draw_all(void)
     draw_buttons();
 }
 
-static const uint8_t buttons[] = {BTN_PLAY, BTN_HOLD, BTN_OCT_UP, BTN_OCT_DOWN};
+static const uint8_t buttons[] = {BTN_ENABLE, BTN_HOLD, BTN_OCT_UP, BTN_OCT_DOWN};
 #define BTN_COUNT (sizeof buttons)
 
+/* ui_popup_begin runs the stock views' callbacks, which repaint button LEDs: redraw ours after it. */
 static void popup(const char *title, const char *value)
 {
     ui_popup_begin();
+    draw_buttons();
     disp_set_screen(1, 0);
     disp_text(1, 0, title);
     disp_text(1, 1, value);
@@ -311,6 +323,7 @@ static const char *const enc_labels[8] = {"Prob", "Len", "Rate", "Rng", "Gte", "
 static void popup_overview(void)
 {
     ui_popup_begin();
+    draw_buttons();
     disp_set_screen(1, TEMPLATE_OVERVIEW);
     disp_text(1, 0, "Turing Machine");
     for (uint32_t i = 0; i < 8; i++)
@@ -350,7 +363,11 @@ static void show_param(int param)
         break;
     case P_RANGE:
         title = "Range";
-        p = put_str(put_num(p, tm.range), " notes");
+        p = put_num(put_str(p, "+"), tm.range);
+        if (tm.range % 12)
+            p = put_str(p, " semitones");
+        else            /* "+24 = 2 Oct" */
+            p = put_str(put_num(put_str(p, " = "), tm.range / 12u), " Oct");
         break;
     case P_GATE:
         title = "Gate";
@@ -403,20 +420,6 @@ static void advance_clock(void)
     }
 }
 
-static void set_playing(int on)
-{
-    st.playing = (uint8_t)on;
-    if (on) {
-        st.last_clock = g_clock_ticks;
-        st.ticks = 0;
-        step();                 /* start right away */
-    } else {
-        note_off();
-    }
-    draw_buttons();
-    popup("Turing Machine", on ? "Playing" : "Paused");
-}
-
 /* Back to the first step of the loop; it plays on the next clock tick once playing. */
 static void rewind(void)
 {
@@ -438,11 +441,8 @@ void tm_transport(int event)
 static void apply_transport(int event, uint32_t clock)
 {
     if (event == TM_STOP) {
-        if (st.playing) {
-            st.playing = 0;
-            note_off();
-            draw_buttons();
-        }
+        st.playing = 0;
+        note_off();
         return;
     }
     if (event == TM_START) {
@@ -453,7 +453,28 @@ static void apply_transport(int event, uint32_t clock)
     }
     st.playing = 1;
     st.last_clock = clock;
-    draw_buttons();
+}
+
+int tm_playing(void)
+{
+    return st.playing;
+}
+
+/* Shift held: the pad that selects the mode is green, bright = enabled (stock: blue when selected). */
+void tm_shift_leds(void)
+{
+    if (!ui_menu_owns(PAD_SELECT, UI_MENU_SHIFT))
+        return;
+    led_override_color(PAD_SELECT, st.enabled ? GREEN_ON : GREEN_DARK);
+    led_override(PAD_SELECT, LED_STATIC);
+}
+
+/* Play button: like MIDI Start / Stop. */
+void tm_play_button(int start)
+{
+    apply_transport(start ? TM_START : TM_STOP, g_clock_ticks);
+    if (st.active)
+        popup("Turing Machine", start ? "Playing" : "Stopped");
 }
 
 /* ---- mode switching ---- */
@@ -463,18 +484,11 @@ static void set_active(int on)
     if (on == st.active)
         return;
     st.active = (uint8_t)on;
-    if (on) {
-        st.ticks = 0;
-        st.last_clock = g_clock_ticks;
-        st.playing = 0;         /* entering the mode never starts playback */
-        st.pos = 0;             /* the loop starts here */
-        st.rot = 0;
+    if (on) {                   /* playback state carries over: it runs in every mode */
         draw_all();
         st.popup_pending = 1;   /* the stock "Custom 4" popup comes after this listener call */
     } else {
-        note_off();
         st.hold = 0;
-        st.playing = 0;
         for (uint32_t id = 0; id < PAD_COUNT; id++)
             led_override(id, LED_RELEASE);
         for (uint32_t i = 0; i < BTN_COUNT; i++)
@@ -536,8 +550,11 @@ static void pad_pressed(uint32_t id)
 static void button_pressed(uint32_t id)
 {
     switch (id) {
-    case BTN_PLAY:
-        set_playing(!st.playing);
+    case BTN_ENABLE:
+        st.enabled = !st.enabled;
+        param_save(P_ENABLE);
+        draw_buttons();
+        popup("Turing Machine", st.enabled ? "Enabled" : "Disabled");
         break;
     case BTN_HOLD:
         st.hold = 1;
@@ -703,7 +720,7 @@ void tm_feat_changed(uint32_t id, uint32_t value)
         for (int p = 0; p < P_COUNT; p++)
             if (id == param_id[p])
                 param_apply(p, value);
-        if (id == param_id[P_OCT] && st.active)
+        if ((id == param_id[P_OCT] || id == param_id[P_ENABLE]) && st.active)
             draw_buttons();
         break;
     }
@@ -714,6 +731,7 @@ void tm_mode_init(void)
     volatile uint32_t *systick_val = (volatile uint32_t *)0xE000E018;
     tm_init(&tm, *systick_val ^ g_clock_ticks);
     st.note = -1;
+    st.enabled = 1;
     /* Define the persistent params at feature-init time like the stock features do, so
      * confstore restores them (and re-applies them through the listener) after loading. */
     for (int p = 0; p < P_COUNT; p++)
@@ -733,9 +751,16 @@ void tm_mode_poll(void)
     uint8_t event = transport_event;
     if (event) {
         transport_event = 0;
-        if (st.active)
-            apply_transport(event, transport_clock);
+        apply_transport(event, transport_clock);
     }
+    if (st.playing) {
+        advance_clock();
+    } else {                    /* stopped: the clock passes by */
+        st.last_clock = g_clock_ticks;
+        note_off();
+    }
+    if (!st.enabled)            /* muted: release a note sounding when it was disabled */
+        note_off();
     if (!st.active)
         return;
     if (st.popup_pending) {
@@ -754,6 +779,4 @@ void tm_mode_poll(void)
             draw_notes();
         }
     }
-    if (st.playing)
-        advance_clock();
 }

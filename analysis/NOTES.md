@@ -181,12 +181,14 @@
   XOR(0,1/2), AND(0,1/2), AND(0,1/2)&OR(1/4,3/4), AND(0,1/3,2/3); a head at fraction f reads bit f*len (min 1
   after the first), i.e. bit 0 delayed - fixed bits collapsed on short loops (len 3: bit 3 = bit 0). The note lasts gate % of
   the step (5..95 %) and is always released before the next step (no ties). Encoder 8 = velocity depth: velocity = 100 blended with the 7-bit window reg bits 4..10 (tm_velocity).
-- Pitch: register value (bits 0..7) picks a note from the full scale (range counts all scale notes); a note
-  disabled on the bottom pads is replaced by the closest enabled note in pitch (tie -> lower). All off = rest.
+- Pitch: register value (bits 0..7) picks a pitch 0..range semitones above the root (range 1..36, 12 = one
+  octave), quantised to the closest enabled scale note in pitch (tie -> lower, inside 0..range when one exists).
+  All off = rest. (Until 2026-11-11 range counted scale notes; stored values carry over as semitones.)
 - **Button ids** (DAW-mode CC map 0x0801C180, ctl -> CC: 0x22 -> 106 up, 0x23 -> 107 down, 0x10 -> 104
-  scene launch ">", 0x11 -> 105 Function): **">" 16 = play/pause** (mode entered paused), **Function 17 =
+  scene launch ">", 0x11 -> 105 Function): **">" 16 = enable/disable** (feature 0x41 = disabled, saved; disabled = notes muted
+  only (note_on skipped, sounding note released); clock, transport and Play keep running), **Play 0x48 = start/stop** (see below), **Function 17 =
   hold**, **up 34 / down 35 = octave** (stored 0..8, shown -4..+4, 4 = 0 = base MIDI 48 like the keyboard default); encoder 7 = rotate (register rotated while the step count since the
-  loop start stays, so MIDI Start rewinds to a shifted start; loop start = mode entry or last Start). Their LEDs are driven through the same override layer (white).
+  loop start stays, so MIDI Start rewinds to a shifted start; loop start = power-on or last Start). Their LEDs are driven through the same override layer (white).
   While Function is held both rows show register bits 0..15 (frozen) and pad presses flip them.
   Flips, rotate, Start rewind and length changes tile the loop over all 16 bits (`tm_tile`: bit k = bit k - len,
   the locked state): pitch reads bits 0..7 and velocity 4..10, beyond short loops, so stale copies there made
@@ -196,6 +198,21 @@
 - Bottom pads 8..15 = scale notes 1..8 (pad 15 only for 8-note scales; note 8 stored inverted in 0x62). Hold: while
   held both rows show a frozen copy of the register while it keeps running; a pad press flips the bit
   it showed, at position (pad + steps since freezing) mod length.
+- **Background playback:** transport (Play, MIDI Start/Continue/Stop) and stepping run in every pad mode
+  (also while disabled = muted); leaving the mode keeps them, `led()` and popups only act while the mode is
+  shown. Stopped: tm_mode_poll keeps `last_clock` current.
+- **Play button (control 0x48):** stock `play_press` 0x08022710 (press dispatcher, no menu check) sends FA/FC on
+  `g_transport` 0x2000F480 {u8 standalone, u8 running, u32 port} when standalone (= no DAW connection, set by
+  `transport_daw_changed` 0x08022752 from 0x08026858 == 0; it then captures 0x48/0x49) and toggles running.
+  cfw_play_press sets `running` = TM playing before calling it, so FA/FC always match the TM toggle
+  (`tm_play_button`: start = rewind like MIDI Start). With a DAW connected only the TM toggles.
+- **Shift overlay LEDs:** `shift_overlay_leds` 0x08022A88 (menu 0xE, via 0x08022CD8) draws through `shift_led`
+  0x08022A5C (only if `ui_menu_owns(id, 0xE)`, then `led_set` 0x0802A612 = led_override(id, 0) + colour):
+  top row = encoder modes, bottom row = pad modes (current 0x0086FF, available 0x001642), 0x28.. other buttons.
+  Its last call `shift_leds_tail` 0x0802B0D2 is hooked (cfw_shift_leds): pad 15 (Custom 4) = green
+  0x00FF00 enabled / 0x000C00 disabled, in every pad mode. The ">" LED (mode shown) is white bright/dim.
+- `ui_popup_begin` 0x08024F5E synchronously runs two callback lists (0x2000EDF0 / 0x2000ED88, max 12 each); they
+  repaint button LEDs, e.g. ">" went dark after the enable popup -> cfw redraws its button LEDs after it.
 - Shift + encoder: the mode keeps the encoders (io events -> TM_ENC_ONLY, relin consumed) and only shows the value.
 - Menus: controls captured by a menu (ctl_is_blocked) go to the menu - except after (re)selecting pad Custom 4:
   Scale/Arp screens keep encoders captured after leaving them, so selecting the mode sets a priority flag
@@ -204,7 +221,8 @@
   third port (stack sp+0x50, raw-byte mode, serial ring -> USART6 @31250 baud via DMA) and links it to the MIDI
   port (`port+0x18`, `0x08013EE8`); `midi_send3` walks that chain, so MIDI-port notes also go out on DIN.
 - **Persistence:** feature params 0x50 prob, 0x51 length, 0x52 rate, 0x5A octave, 0x5B range, 0x5D gate,
-  0x5E trigger heads, 0x5F note mask (7 bits), 0x61 MIDI channel, 0x62 note 8 off, 0x63 velocity depth, 0x60 marker (0x5A), defined with flags 3 in cfw_init. Marker
+  0x5E trigger heads, 0x5F note mask (7 bits), 0x61 MIDI channel, 0x62 note 8 off, 0x63 velocity depth, 0x41 disabled
+  (inverted: records from before it read 0 = enabled), 0x60 marker (0x5A), defined with flags 3 in cfw_init. Marker
   missing (first boot / older settings record) -> defaults are stored. Ids 0x20..0x3F avoided: they alias the
   LSBs of 14-bit params 0x00..0x1F.
 
