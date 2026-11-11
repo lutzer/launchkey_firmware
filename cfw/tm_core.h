@@ -8,7 +8,8 @@
 #define TM_LEN_MIN     2
 #define TM_LEN_MAX     16
 #define TM_PROB_MAX    127   /* 127 = locked, 64 = random, 0 = locked + inverted (period 2L) */
-#define TM_OCT_MAX     8
+#define TM_OCT_MAX     8     /* octave 4 = 0 shown: -4..+4 */
+#define TM_OCT_ZERO    4
 #define TM_RANGE_MIN   1
 #define TM_RANGE_MAX   36    /* note range in playable-note steps */
 #define TM_NUM_DIVS    11

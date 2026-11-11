@@ -166,7 +166,9 @@
 - View open (stock pattern): `ui_close_views` (all close callbacks), shown = 1, `ui_view_changed`,
   `ui_popup_begin` (activate callbacks re-capture controls and redraw LEDs). Close: `*_view_close` + popup_begin.
 - cfw (`cfw/shift_views.c`): hooks the scale/arp press calls in the dispatcher and the entry of `arp_leds`.
-  0x42 / 0x60 open the view without touching scale on/off, arp on/off or latch (press again: close);
+  0x42 opens the view via `scale_view_open` (scale on; with the scale off notes stay chromatic whatever the type,
+  so opening without enabling looked like "type has no effect"), never switches it off; 0x60 opens the view
+  without touching arp on/off or latch (press again: close);
   in the Arp view up/down set the latch with the stock popup, and the arrow of the current setting is lit.
 - Chord Map performance-modifier view = menu 7 (state 0x200010AC): pads 5-7 / 13-15 pick Arp Up/Down,
   Inversion Up/Down, Bass + Chord, Chord Split; control 0x10 toggles their latch ("Latch ON/OFF").
@@ -183,7 +185,7 @@
   disabled on the bottom pads is replaced by the closest enabled note in pitch (tie -> lower). All off = rest.
 - **Button ids** (DAW-mode CC map 0x0801C180, ctl -> CC: 0x22 -> 106 up, 0x23 -> 107 down, 0x10 -> 104
   scene launch ">", 0x11 -> 105 Function): **">" 16 = play/pause** (mode entered paused), **Function 17 =
-  hold**, **up 34 / down 35 = octave**; encoder 7 = rotate (register rotated while the step count since the
+  hold**, **up 34 / down 35 = octave** (stored 0..8, shown -4..+4, 4 = 0 = base MIDI 48 like the keyboard default); encoder 7 = rotate (register rotated while the step count since the
   loop start stays, so MIDI Start rewinds to a shifted start; loop start = mode entry or last Start). Their LEDs are driven through the same override layer (white).
   While Function is held both rows show register bits 0..15 (frozen) and pad presses flip them.
   The keyboard-octave popup captures the arrows (ctl_is_blocked 34/35), so the four mode buttons only yield

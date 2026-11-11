@@ -336,7 +336,10 @@ static void show_param(int param)
         break;
     case P_OCT:
         title = "Turing Octave";
-        p = put_num(p, tm.octave);
+        if (tm.octave < TM_OCT_ZERO)
+            p = put_num(put_str(p, "-"), TM_OCT_ZERO - tm.octave);
+        else
+            p = put_num(put_str(p, tm.octave > TM_OCT_ZERO ? "+" : ""), tm.octave - TM_OCT_ZERO);
         break;
     case P_RANGE:
         title = "Range";

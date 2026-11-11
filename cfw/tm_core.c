@@ -29,7 +29,7 @@ void tm_init(tm_t *tm, uint32_t seed)
     tm->len = 8;
     tm->prob = 96;
     tm->div = TM_DIV_DEFAULT;
-    tm->octave = 3;
+    tm->octave = TM_OCT_ZERO;
     tm->range = 8;
     tm->mask = 0xFF;
     tm->gate = 50;

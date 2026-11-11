@@ -146,6 +146,7 @@ typedef struct {
 extern volatile scale_view_t g_scale_view;
 void scale_press(uint32_t id);
 void scale_view_close(void);
+void scale_view_open(void);     /* scale on + view shown (stock open path, incl. ui_popup_begin) */
 
 /* Arp view (menu 1, buttons Arp 0x1E / Shift+Arp 0x60 = latch toggle). */
 typedef struct {

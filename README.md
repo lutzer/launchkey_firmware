@@ -6,8 +6,9 @@ firmware version 1.3 build 1563. It adds:
 - **Turing Machine mode** – a generative sequencer inspired by the Music Thing Turing Machine, on pad mode
   Custom 4
 - **Scale memory** – the scale (on/off, type, root note, mode) is restored at power-on
-- **Settings screens without switching** – Shift + Scale / Shift + Arp open the Scale / Arp settings
-  (press again to close) and leave Scale, Arp and Latch as they are. On the Arp screen the encoder arrows set
+- **Settings screens without switching off** – Shift + Scale / Shift + Arp open the Scale / Arp settings
+  (press again to close). Shift + Scale switches the scale on (its settings only apply while it is on) but
+  never off; Shift + Arp leaves Arp and Latch as they are. On the Arp screen the encoder arrows set
   Latch: **up = on, down = off**, and the arrow of the current setting is lit
 - A **CFW badge** on the boot logo, and the version shown at boot gets a `+cfw` suffix
 
@@ -32,7 +33,7 @@ value picks a note from the current scale, and trigger heads decide whether a st
 | Bottom row (white) | **Scale notes** (pad 1 = root, pad 8 = 8th note of 8-note scales). Press to switch a note on (bright) or off (dim); pads beyond the scale are dark. A disabled note is replaced by the closest enabled note. With Scale off all eight pads are lit and all 12 semitones are used. |
 | **>** (above Function) | **Play / pause** (lit while playing). |
 | **Function** (next to the pads) | **Hold.** While held, both rows show all 16 register bits (top = 1–8, bottom = 9–16), frozen on screen while the sequence keeps running, and pressing a pad **flips that bit**. |
-| **Up / Down arrows** (next to the pads) | **Octave** 0–8 (an arrow is dim when the end is reached). |
+| **Up / Down arrows** (next to the pads) | **Octave** −4 to +4 (0 = lowest note MIDI 48 + root, the keyboard's default octave; an arrow is dim when the end is reached). |
 
 ### Encoders
 

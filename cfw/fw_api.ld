@@ -78,6 +78,7 @@ PROVIDE(feat_get_value      = 0x0802B394 | 1);
 PROVIDE(feat_set_value_volatile = 0x0802B354 | 1);
 PROVIDE(scale_press         = 0x0802168C | 1);
 PROVIDE(scale_view_close    = 0x08021656 | 1);
+PROVIDE(scale_view_open     = 0x08021634 | 1);
 PROVIDE(g_scale_view        = 0x2000F488);
 PROVIDE(arp_press           = 0x080238CE | 1);
 PROVIDE(arp_view_close      = 0x0802388C | 1);
