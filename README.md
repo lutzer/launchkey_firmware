@@ -44,7 +44,7 @@ value picks a note from the current scale, and trigger heads decide whether a st
 | 1 | Probability | right = locked loop, middle = random, left = locked and inverted (twice as long) |
 | 2 | Length | 2–16 steps |
 | 3 | Rate (turn right = faster) | 4/1, 2/1, 1/1, 1/2, 1/4, 1/4T, 1/8, 1/8T, 1/16, 1/16T, 1/32 |
-| 4 | Range | +1 … +36 semitones above the root (+12 = one octave, +24 = two, +36 = three); the register picks a pitch in that span and it is moved to the closest enabled scale note (staying inside the span when possible) |
+| 4 | Range | +1 … +48 semitones above the root (+12 = one octave, +24 = two, +36 = three, +48 = four); the register picks a pitch in that span and it is moved to the closest enabled scale note (staying inside the span when possible) |
 | 5 | Gate length | 5–95 % of a step (notes are never tied) |
 | 6 | Trigger heads (turn right = sparser) | **Every** step · **OR 3** (~88 %) · **OR 2** (~75 %) · **Bit 1** (~50 %, like the module) · **XOR** (~50 %, different rhythm) · **AND 2** (~25 %) · **AND 2+** (~19 %) · **AND 3** (~12 %). The heads sit at fixed fractions of the loop (start, ½, ⅓ and ⅔, ¼ and ¾) and combine what they read, so the rhythm loops and mutates with the pattern at any length. |
 | 7 | Rotate | Shifts the loop one step per detent without changing bits, i.e. chooses the step that MIDI Start returns to (shown as "Step n") |

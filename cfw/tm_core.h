@@ -11,7 +11,7 @@
 #define TM_OCT_MAX     8     /* octave 4 = 0 shown: -4..+4 */
 #define TM_OCT_ZERO    4
 #define TM_RANGE_MIN   1
-#define TM_RANGE_MAX   36    /* pitch range in semitones above the root (12 = one octave) */
+#define TM_RANGE_MAX   48    /* pitch range in semitones above the root (12 = one octave) */
 #define TM_NUM_DIVS    11
 #define TM_GATE_MIN    5     /* gate length in % of a step; never reaches the next step */
 #define TM_GATE_MAX    95
