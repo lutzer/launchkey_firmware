@@ -33,6 +33,50 @@ uint32_t cfw_boot_version(char *buf, uint32_t pos, uint32_t size, const uint32_t
     return str_append(buf, pos, size, "+cfw");
 }
 
+/* Hooks: layout-name text (mode popups, home screen). Pad Custom 4 is Turing Machine mode. */
+#define LAYOUT_PADS    1
+#define PAD_CUSTOM4    8
+
+static int is_tm_layout(uint32_t index, uint32_t type)
+{
+    return (type & 0xFF) == LAYOUT_PADS && index == PAD_CUSTOM4;
+}
+
+void cfw_layout_name_a(uint32_t screen, uint32_t field, uint32_t index, uint32_t type)
+{
+    if (is_tm_layout(index, type))
+        disp_text(screen, field, "Turing Machine");
+    else
+        layout_name_text_a(screen, field, index, type);
+}
+
+void cfw_layout_name_b(uint32_t screen, uint32_t field, uint32_t index, uint32_t type)
+{
+    if (is_tm_layout(index, type))
+        disp_text(screen, field, "Turing Machine");
+    else
+        layout_name_text_b(screen, field, index, type);
+}
+
+/* Hooks: the MIDI realtime handler's calls for FA / FB / FC. */
+void cfw_midi_start(void)
+{
+    clock_midi_start();
+    tm_transport(TM_START);
+}
+
+void cfw_midi_continue(void)
+{
+    clock_midi_continue();
+    tm_transport(TM_CONTINUE);
+}
+
+void cfw_midi_stop(void)
+{
+    clock_midi_stop();
+    tm_transport(TM_STOP);
+}
+
 /* ---- input dispatchers: replace the stock ones (see cfw/hooks.txt) ---- */
 
 typedef void (*io2_fn)(uint32_t, uint32_t);

@@ -3,10 +3,18 @@
 0x0801592c  09f010ff  21f0c2fc   # bl cfw_init  was: bl feat_scale_init (end of feature init)
 0x08016e42  11f072f8  20f062fa   # bl cfw_boot_version  was: bl fmt_version (boot screen "Ver: ...")
 0x0801048a  06f0b0fd  26f029ff   # bl cfw_poll  was: bl confstore_poll (last of 5 calls in the main loop)
-0x0801b530  f8b50446  1bf0fcbe   # b.w cfw_io_dispatch_a  was: push {r3-r7,lr}; mov r4,r0
-0x0801b54c  f8b50446  1bf016bf   # b.w cfw_io_dispatch_b
-0x0801b574  70b50446  1bf048bf   # b.w cfw_io_dispatch_c  was: push {r4-r6,lr}; mov r4,r0
-0x0801b592  f8b50446  1bf011bf   # b.w cfw_io_dispatch_d
-0x08020e48  2de9f041  16f000bb   # b.w cfw_relin_dispatch_pos  was: push.w {r4-r8,lr}
-0x08020e56  2de9f041  16f019bb   # b.w cfw_relin_dispatch_hires
-0x08020e8a  2de9f041  16f01fbb   # b.w cfw_relin_dispatch_step
+0x08022548  08f0b6fc  14f0effe   # bl cfw_layout_name_a  was: bl layout_name_text_a
+0x08022a32  08f041fa  14f07afc   # bl cfw_layout_name_a
+0x08022a58  08f02eba  14f067bc   # b.w cfw_layout_name_a  was: b.w layout_name_text_a (tail call)
+0x08022e8c  08f014f8  14f04dfa   # bl cfw_layout_name_a
+0x08024230  06f04bfe  13f08cf8   # bl cfw_layout_name_b  was: bl layout_name_text_b
+0x08030968  e3f753f9  06f001fd   # bl cfw_midi_start  was: bl clock_midi_start (FA)
+0x08030972  e3f757f9  06f004fd   # bl cfw_midi_continue  was: bl clock_midi_continue (FB)
+0x0803097c  e3f74df9  06f007fd   # bl cfw_midi_stop  was: bl clock_midi_stop (FC)
+0x0801b530  f8b50446  1bf036bf   # b.w cfw_io_dispatch_a  was: push {r3-r7,lr}; mov r4,r0
+0x0801b54c  f8b50446  1bf050bf   # b.w cfw_io_dispatch_b
+0x0801b574  70b50446  1bf082bf   # b.w cfw_io_dispatch_c  was: push {r4-r6,lr}; mov r4,r0
+0x0801b592  f8b50446  1bf04bbf   # b.w cfw_io_dispatch_d
+0x08020e48  2de9f041  16f03abb   # b.w cfw_relin_dispatch_pos  was: push.w {r4-r8,lr}
+0x08020e56  2de9f041  16f053bb   # b.w cfw_relin_dispatch_hires
+0x08020e8a  2de9f041  16f059bb   # b.w cfw_relin_dispatch_step

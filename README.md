@@ -21,14 +21,15 @@ The display shows "Turing Machine". The mode starts **paused**.
 A 16-bit shift register loops and, depending on the probability, flips the bit that comes round again. Its
 value picks a note from the current scale, and trigger heads decide whether a step plays a note.
 
-### Pads
+### Pads and buttons
 
-| Pad | Function |
+| Control | Function |
 |---|---|
-| Top row, pad 1 (yellow) | **Play / pause.** Also shows register bit 1 (bright = 1, dim = 0). |
-| Top row, pads 2–8 (green) | Register bits 2–8, moving one pad to the right per step. Dark = beyond the loop length. |
-| Bottom row, pads 1–7 (white) | **Scale notes** (pad 1 = root). Press to switch a note on (bright) or off (dim). A disabled note is replaced by the closest enabled note. With Scale off all pads are lit and all 12 semitones are used. |
-| Bottom row, pad 8 (pink) | **Hold.** While held, the top row stops moving on screen (the sequence keeps running) and pressing a top pad **flips that bit**; pad 1 turns green then. |
+| Top row (green) | Register bits 1–8, moving one pad to the right per step. Dark = beyond the loop length. |
+| Bottom row, pads 1–7 (white) | **Scale notes** (pad 1 = root). Press to switch a note on (bright) or off (dim). A disabled note is replaced by the closest enabled note. With Scale off all pads are lit and all 12 semitones are used. Pad 8 is unused. |
+| **>** (above Function) | **Play / pause** (lit while playing). |
+| **Function** (next to the pads) | **Hold.** While held, both rows show all 16 register bits (top = 1–8, bottom = 9–16), frozen on screen while the sequence keeps running, and pressing a pad **flips that bit**. |
+| **Up / Down arrows** (next to the pads) | **Octave** 0–8 (an arrow is dim when the end is reached). |
 
 ### Encoders
 
@@ -37,10 +38,10 @@ value picks a note from the current scale, and trigger heads decide whether a st
 | 1 | Probability | right = locked loop, middle = random, left = locked and inverted (twice as long) |
 | 2 | Length | 2–16 steps |
 | 3 | Rate (turn right = faster) | 4/1, 2/1, 1/1, 1/2, 1/4, 1/4T, 1/8, 1/8T, 1/16, 1/16T, 1/32 |
-| 4 | Octave | 0–8 |
-| 5 | Range | 1–36 scale notes |
-| 6 | Gate length | 5–95 % of a step (notes are never tied) |
-| 7 | Trigger heads | Full, 1/2, 1/3, 1/4, 1/6, 1/8, 1/16 – a step plays a note when any head (register position 1, then every n-th, within the loop) reads a 1. Full = nearly every step, 1/16 = only when bit 1 is set. |
+| 4 | Range | 1–36 scale notes |
+| 5 | Gate length | 5–95 % of a step (notes are never tied) |
+| 6 | Trigger heads | Full, 1/2, 1/3, 1/4, 1/6, 1/8, 1/16 – a step plays a note when any head (register position 1, then every n-th, within the loop) reads a 1. Full = nearly every step, 1/16 = only when bit 1 is set. |
+| 7 | Rotate | Shifts the loop one step per detent without changing bits, i.e. chooses the step that MIDI Start returns to (shown as "Step n") |
 | 8 | follows the selected encoder mode | |
 
 Turning an encoder shows its value on the display.
@@ -48,6 +49,8 @@ Turning an encoder shows its value on the display.
 ### Good to know
 
 - **Tempo** follows the device: the internal tempo, or external MIDI clock when connected.
+- **MIDI transport:** Start goes back to the first step of the loop (set with encoder 7) and plays it on the
+  next clock tick (the downbeat), Continue resumes, Stop pauses. **>** still works as well.
 - **Notes** go out on the **Keys Channel** (Settings) via USB MIDI and the TRS MIDI out, velocity 100.
 - **All parameters and the scale-note selection are saved** and restored at power-on (about 3 seconds after
   the last change). The running pattern and play/pause are not saved.

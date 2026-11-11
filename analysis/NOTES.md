@@ -75,6 +75,13 @@
   (`0x08025712` capture = block + 0x0801BD28(id, 1), `0x08025726` release = unblock + 0x0801BC92(id, 3)).
 - MIDI out: `midi_put(port, byte)` @0x08013F8E (USB-MIDI packetiser, SysEx of any length), `midi_send3(port,
   status, d1, d2)` @0x08013F6E. App ports (objects on main's stack) at 0x2000EE40 / 0x2000EE44.
+- **Layout names:** `layout_name_text_a` 0x0802AEB8 (mode popups, called at 0x08022548/A32/A58/E8C) and
+  `layout_name_text_b` 0x0802AECA (home screen, 0x08024230) write a layout's name into a display field, handle
+  {index, type} in r2/r3. cfw hooks those calls so pad Custom 4 reads "Turing Machine".
+- **MIDI realtime handler** 0x08030958 (via 0x0803098E): F8 -> `clock_ext_tick`, FA -> `clock_midi_start`
+  0x08013C12, FB -> `clock_midi_continue` 0x08013C24, FC -> `clock_midi_stop` 0x08013C1A, F2 accepted (no
+  action here). cfw hooks the three transport calls (cfw_midi_*) -> Turing Machine Start = rewind to the first
+  loop step (tm_rewind: rotate back by the steps since the loop start) played on the next tick, Continue = resume, Stop = pause (recorded in the hook, applied in tm_mode_poll).
 - Main loop @0x0801041A (calls io poll 0x08014502, confstore_poll x5); all input listeners run there.
 
 ## Display (fw 1563)
@@ -105,6 +112,21 @@
 - On boot `confstore_poll` loads the blob, then `feat_on_store_loaded` @0x08026CAC re-sets every defined param
   (non-definition set), so filters/listeners see the restored values.
 - Settings menu params are defined with flags = 3 (feature_settings.cpp, e.g. 0x0801EFF8).
+- **Stock feature IDs (static scan, all confsys 0xD0 calls + define thunks 0x0801594A, 0x0801F112, 0x0801F51C,
+  0x0801F584, 0x0801F660):** 02-07 (14-bit, written as 0x4002..0x4007, LSBs at 22-27), 1B-1F, 3C-3F, 44-47,
+  49-4F, 53-59, 5C, 64-77, 79-7D; persistent 3C 3D 3E 4A 4F 64-77 79. Computed IDs only in layout_select
+  (1D-1F), `feat_on_store_loaded` (defined IDs) and the CC handler below. 14-bit aliasing exists only below
+  0x40 (`feat_set_param` clears the flag for IDs >= 0x40). New cfw IDs: pick >= 0x40 outside this list.
+- The persistent blob has one byte per ID; its confstore record (key 0xFEA70BE5, 0x84 bytes) keeps its size when
+  cfw uses more IDs, so the SPI layout and stock values are unaffected. Slots of never-persistent IDs read as
+  whatever the record holds (0 on old records) -> cfw uses a marker ID.
+- **Feature CCs:** `midi_cc_feature_set` 0x0803050C (MIDI input chain 0x08030304): an incoming CC on MIDI
+  **channel 7** sets feature param id = CC number if the ID is defined (`confsys_param_flags` 0x08016D8C),
+  CC 0..0x3F as 14-bit MSB/LSB pairs. So CC 80/81/82/90/91/93/94/95/96 on channel 7 *to* the device change
+  the Turing Machine parameters, just like CC 100.. change the stock settings.
+- **No data in internal flash after the image:** the only literal pointers outside the image are 0x080001F0
+  (bootloader read) and the FLASH regs (ACR latency 0x0801057E, caches 0x08010E3E); no FLASH_KEYR. The app slot
+  = sectors 2-5 and updates may fill all 0x38000 bytes, so anything stored there would not survive an update.
 - RAM 0x200015D0..0x2000F518 is zero-initialised at startup (scatter table @0x08033544).
 
 ## Scale (fw 1563)
@@ -119,20 +141,25 @@
 
 - `cfw/tm_mode.c` + `cfw/tm_core.c`. Top pads = register bits 0..7 (bit 0 newest = pad 1, green; press flips),
   bottom pads = scale notes (white; press toggles), encoders 1..7 = probability, length, rate (4/1..1/32,
-  CW = faster), octave, range, gate, trigger heads. A step plays a note when any trigger head reads a 1:
+  CW = faster), range, gate, trigger heads, rotate; octave on the up/down arrows. A step plays a note when any trigger head reads a 1:
   heads at positions 0, s, 2s, ... below the loop length, s = 1 (Full, default) / 2 / 3 / 4 / 6 / 8 / 16
   (1/16 = first position only; a loop shorter than s also leaves only position 0). The note lasts gate % of
   the step (5..95 %) and is always released before the next step (no ties). Encoder 8 follows the encoder mode.
 - Pitch: register value (bits 0..7) picks a note from the full scale (range counts all scale notes); a note
   disabled on the bottom pads is replaced by the closest enabled note in pitch (tie -> lower). All off = rest.
-- Top pad 1 = play/pause (yellow; bright = bit 0 is 1). The mode is entered paused. Bit flips (all top pads,
-  pad 1 green then) only while the hold pad is down.
-- Bottom pads 8..14 = scale notes 1..7 (8th note of 8-note scales always on); **pad 15 = hold** (pink): while
-  held the top row shows a frozen copy of the register while it keeps running; a top-pad press flips the bit
+- **Button ids** (DAW-mode CC map 0x0801C180, ctl -> CC: 0x22 -> 106 up, 0x23 -> 107 down, 0x10 -> 104
+  scene launch ">", 0x11 -> 105 Function): **">" 16 = play/pause** (mode entered paused), **Function 17 =
+  hold**, **up 34 / down 35 = octave**; encoder 7 = rotate (register rotated while the step count since the
+  loop start stays, so MIDI Start rewinds to a shifted start; loop start = mode entry or last Start). Their LEDs are driven through the same override layer (white).
+  While Function is held both rows show register bits 0..15 (frozen) and pad presses flip them.
+  The keyboard-octave popup captures the arrows (ctl_is_blocked 34/35), so the four mode buttons only yield
+  to a menu that has captured pad 0 too (Settings etc.).
+- Bottom pads 8..14 = scale notes 1..7 (8th note of 8-note scales always on), pad 15 unused. Hold: while
+  held both rows show a frozen copy of the register while it keeps running; a pad press flips the bit
   it showed, at position (pad + steps since freezing) mod length.
 - Menus: controls captured by a menu (ctl_is_blocked) go to the menu - except after (re)selecting pad Custom 4:
   Scale/Arp screens keep encoders captured after leaving them, so selecting the mode sets a priority flag
-  that wins over captures until any other button (not Shift/pads/encoders) is pressed.
+  that wins over captures until any other button (not Shift/pads/encoders/the four mode buttons) is pressed.
 - Notes: MIDI port (g_app_ports[1]) on the Keys Channel (0x64), velocity 100. **DIN/TRS out:** main() inits a
   third port (stack sp+0x50, raw-byte mode, serial ring -> USART6 @31250 baud via DMA) and links it to the MIDI
   port (`port+0x18`, `0x08013EE8`); `midi_send3` walks that chain, so MIDI-port notes also go out on DIN.

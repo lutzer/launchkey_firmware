@@ -50,6 +50,8 @@ details belong here and in `analysis/NOTES.md`.
 - Initial SP 0x2000FFF8 (64 KiB SRAM). Stock image ends 0x080372B3 (193 203 bytes). Reset_Handler 0x08033481.
 - Settings live in an external SPI flash; the app never writes internal flash, so 0x080372B4..0x0803FFFF of the
   0x38000 app slot is free for cfw code (verified: grown images install and run). RAM headroom is ~2.7 KiB.
+- Feature params used by stock code are listed in NOTES ("Settings storage"); new cfw IDs must be >= 0x40 and
+  not in that list (channel-7 CCs from the host can set any defined ID).
 - Source-file strings: confsys.c, confsys_init.c, extdata_*.c, io_listener.c, muxio_hw_data.c, serstor_hw.c.
 
 ## Analysis tooling

@@ -13,5 +13,10 @@ void tm_feat_changed(uint32_t id, uint32_t value);
 #define TM_ENC_ONLY  2   /* only the encoder module, so it still produces turn events */
 int tm_io_event(int list, uint32_t id, uint32_t value);
 int tm_enc_event(int list, uint32_t id, int32_t delta);
+/* received MIDI transport; may run outside the main loop, so it only records the event */
+#define TM_START     1
+#define TM_CONTINUE  2
+#define TM_STOP      3
+void tm_transport(int event);
 
 #endif

@@ -43,6 +43,10 @@ void confstore_poll(void);
  * that a popup starts (called by the stock popups before drawing). */
 void disp_set_screen(uint32_t screen, uint32_t template_id);
 void disp_text(uint32_t screen, uint32_t field, const char *str);
+/* Write a layout's name into a display field; the layout handle {index, type} comes in r2/r3
+ * (type 1 = pads). _a is used by the mode popups, _b by the home screen. */
+void layout_name_text_a(uint32_t screen, uint32_t field, uint32_t index, uint32_t type);
+void layout_name_text_b(uint32_t screen, uint32_t field, uint32_t index, uint32_t type);
 void ui_popup_begin(void);
 
 /* Input listeners (all called from the main loop). io lists: control id < 0x78. */
@@ -104,5 +108,9 @@ void led_override(uint32_t id, uint32_t mode);
  * internal tempo (period in us at 0x20000114) or counted external MIDI clocks. Poll it from
  * the main loop and step on the difference, like the MIDI Clock Out sender (0x08014492). */
 extern volatile uint32_t g_clock_ticks;
+/* Received MIDI transport (realtime handler 0x08030958 calls these for FA / FB / FC). */
+void clock_midi_start(void);
+void clock_midi_continue(void);
+void clock_midi_stop(void);
 
 #endif

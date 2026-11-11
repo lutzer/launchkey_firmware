@@ -149,6 +149,22 @@ static void test_flip(void)
     CHECK(tm_div_ticks[TM_DIV_DEFAULT] == 6, "default rate is 1/16");
 }
 
+static void test_rewind(void)
+{
+    for (int len = TM_LEN_MIN; len <= TM_LEN_MAX; len++)
+        for (int n = 0; n < 40; n++) {
+            tm_t tm;
+            tm_init(&tm, 500 + len * 40 + n);
+            tm.len = len; tm.prob = TM_PROB_MAX;
+            uint32_t mask = (1u << len) - 1;
+            uint16_t start = tm.reg;
+            for (int i = 0; i < n; i++)
+                tm_step(&tm);
+            tm_rewind(&tm, n);
+            CHECK((tm.reg & mask) == (start & mask), "rewind len %d after %d steps", len, n);
+        }
+}
+
 static int heads_index(int spacing)
 {
     for (int i = 0; i < TM_NUM_HEADS; i++)
@@ -209,6 +225,7 @@ static void test_gate(void)
 int main(void)
 {
     test_flip();
+    test_rewind();
     test_gate();
     test_heads();
     test_locked();

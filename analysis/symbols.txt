@@ -96,3 +96,15 @@
 0x08014492 clock_out_poll
 0x20000104 g_clock                       data
 0x20000124 g_clock_ticks                 data
+0x0801594a feat_define_layout
+0x0801f51c feat_define_settings
+0x08016d8c confsys_param_flags
+0x0802b354 feat_set_value_volatile
+0x0802b362 feat_set_value
+0x0803050c midi_cc_feature_set
+0x08030958 midi_realtime_handler
+0x08013c12 clock_midi_start
+0x08013c1a clock_midi_stop
+0x08013c24 clock_midi_continue
+0x0802aeb8 layout_name_text_a
+0x0802aeca layout_name_text_b

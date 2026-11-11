@@ -56,6 +56,17 @@ uint16_t tm_gate_ticks(const tm_t *tm)
     return (uint16_t)t;
 }
 
+void tm_rewind(tm_t *tm, int n)
+{
+    n %= tm->len;
+    if (n == 0)
+        return;
+    uint32_t mask = (1u << tm->len) - 1;
+    uint32_t loop = tm->reg & mask;
+    loop = (loop >> n | loop << (tm->len - n)) & mask;
+    tm->reg = (uint16_t)((tm->reg & ~mask) | loop);
+}
+
 int tm_flip(tm_t *tm, int i)
 {
     if (i < 0 || i >= tm->len)

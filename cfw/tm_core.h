@@ -54,6 +54,10 @@ uint16_t tm_gate_ticks(const tm_t *tm);
 /* Flip register bit i (0 = newest) if it is inside the loop; returns 1 if flipped. */
 int tm_flip(tm_t *tm, int i);
 
+/* Undo n locked steps: rotate the loop (bits 0..len-1) back by n, so the register is where
+ * the loop started n steps ago (flipped bits stay flipped). */
+void tm_rewind(tm_t *tm, int n);
+
 /* Number of notes in a scale table entry (= number of usable lower pads). */
 int tm_scale_size(const uint8_t semis[12]);
 

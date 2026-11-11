@@ -9,6 +9,18 @@
 0x08016e42  bl  cfw_boot_version  11f072f8   # was: bl fmt_version (boot screen "Ver: ...")
 0x0801048a  bl  cfw_poll          06f0b0fd   # was: bl confstore_poll (last of 5 calls in the main loop)
 
+# layout-name text in the mode popups and the home screen: pad Custom 4 shows "Turing Machine"
+0x08022548  bl  cfw_layout_name_a 08f0b6fc   # was: bl layout_name_text_a
+0x08022a32  bl  cfw_layout_name_a 08f041fa
+0x08022a58  b.w cfw_layout_name_a 08f02eba   # was: b.w layout_name_text_a (tail call)
+0x08022e8c  bl  cfw_layout_name_a 08f014f8
+0x08024230  bl  cfw_layout_name_b 06f04bfe   # was: bl layout_name_text_b
+
+# MIDI realtime handler (0x08030958): transport messages also go to Turing Machine mode
+0x08030968  bl  cfw_midi_start    e3f753f9   # was: bl clock_midi_start (FA)
+0x08030972  bl  cfw_midi_continue e3f757f9   # was: bl clock_midi_continue (FB)
+0x0803097c  bl  cfw_midi_stop     e3f74df9   # was: bl clock_midi_stop (FC)
+
 # io_listener dispatchers -> cfw versions (filter pad events while Turing Machine mode owns them)
 0x0801b530  b.w cfw_io_dispatch_a f8b50446   # was: push {r3-r7,lr}; mov r4,r0
 0x0801b54c  b.w cfw_io_dispatch_b f8b50446

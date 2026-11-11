@@ -18,6 +18,8 @@ PROVIDE(g_scale_intervals  = 0x08031DE0);
 PROVIDE(confstore_poll     = 0x08016FEE | 1);
 PROVIDE(disp_set_screen    = 0x080185C0 | 1);
 PROVIDE(disp_text          = 0x0801867C | 1);
+PROVIDE(layout_name_text_a = 0x0802AEB8 | 1);
+PROVIDE(layout_name_text_b = 0x0802AECA | 1);
 PROVIDE(ui_popup_begin     = 0x08024F5E | 1);
 
 /* input listeners: io_listener lists A..D (max 8 each), relative-input lists (max 4 each) */
@@ -53,6 +55,9 @@ PROVIDE(g_relin_list_step  = 0x2000F238);
 
 /* clock: free-running 24 PPQN tick counter (internal tempo or external MIDI clock) */
 PROVIDE(g_clock_ticks      = 0x20000124);
+PROVIDE(clock_midi_start    = 0x08013C12 | 1);
+PROVIDE(clock_midi_stop     = 0x08013C1A | 1);
+PROVIDE(clock_midi_continue = 0x08013C24 | 1);
 PROVIDE(ctl_is_blocked     = 0x08016058 | 1);
 
 /* inputrelative's io listeners (turn raw encoder events into relin events) */
