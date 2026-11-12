@@ -16,7 +16,7 @@
  *   encoders 1..8      probability, length, rate, range, gate length, trigger heads, rotate,
  *                      velocity depth (velocity from register bits 4..10, see tm_velocity)
  *                      (rotate shifts the loop without flipping bits, i.e. moves the step that
- *                      MIDI Start returns to)
+ *                      MIDI Start returns to); mapping and ranges: params[] / enc_param[]
  * MIDI transport (also while another pad mode is shown or disabled): Start = back to the first
  * step, which plays on the next clock tick (the downbeat), Continue = resume, Stop = pause.
  * Outside the mode the LEDs and popups are left to the stock firmware.
@@ -42,16 +42,13 @@
 #define FEAT_PAD_MODE     0x1D
 #define FEAT_SHIFT        0x3F
 #define CTL_SHIFT         25
-#define PAD_CUSTOM4       8
 #define PAD_SELECT        15          /* Shift + this pad selects pad Custom 4 */
 
 #define PAD_COUNT         16
-#define PAD_ROW           8
+#define PAD_ROW           TM_PADS
 #define NOTE8_BIT         0x80        /* 8th scale note (bottom pad 8, 8-note scales only) */
 #define ENC_FIRST         56          /* encoder 1 */
 #define ENC_COUNT         8
-#define ENC_ROTATE        6           /* encoder 7; encoders 1..6 = params P_PROB..P_HEADS */
-#define ENC_VEL           7           /* encoder 8 */
 /* Buttons next to the pads (ids from the DAW-mode CC map at 0x0801C180: CC 104..107). */
 #define BTN_ENABLE        16          /* ">" (scene launch), above Function */
 #define BTN_HOLD          17          /* Function */
@@ -69,12 +66,37 @@
 #define WHITE_DIM         0x181818
 #define LED_OFF           0x000000
 
-/* Persistent feature params (free ids >= 0x40: ids 0x20..0x3F double as 14-bit LSBs). */
-/* Feature values are 7 bits: P_MASK holds notes 1..7, P_NOTE8_OFF the 8th note inverted (records
+/* Parameters: every encoder and the octave arrows change one through param_change.
+ * Persistent ones are feature params (free ids >= 0x40: ids 0x20..0x3F double as 14-bit LSBs).
+ * Feature values are 7 bits: P_MASK holds notes 1..7, P_NOTE8_OFF the 8th note inverted (records
  * from before it existed read 0 = on, as the 8th note used to be always on). P_ENABLE is stored
- * inverted too (0 = enabled), for the same reason. */
-enum { P_PROB, P_LEN, P_RATE, P_RANGE, P_GATE, P_HEADS, P_OCT, P_MASK, P_CHAN, P_NOTE8_OFF, P_VEL, P_ENABLE, P_COUNT };
-static const uint8_t param_id[P_COUNT] = {0x50, 0x51, 0x52, 0x5B, 0x5D, 0x5E, 0x5A, 0x5F, TM_CHANNEL_PARAM, 0x62, 0x63, 0x41};
+ * inverted too (0 = enabled), for the same reason. P_ROT is not stored: it rotates the register. */
+enum { P_PROB, P_LEN, P_RATE, P_RANGE, P_GATE, P_HEADS, P_OCT, P_MASK, P_CHAN, P_NOTE8_OFF, P_VEL, P_ENABLE,
+       P_ROT, P_COUNT };
+typedef struct {
+    uint8_t id;             /* feature param id, 0 = not stored */
+    uint8_t min, max;       /* stored value range (feature values are 7 bits, so max <= 127) */
+    uint8_t step;           /* change per encoder detent / tick */
+    uint8_t fine;           /* encoder reacts to every tick, else per detent */
+    const char *label;      /* short name in the mode popup (encoders only) */
+} param_def_t;
+static const param_def_t params[P_COUNT] = {
+    [P_PROB]      = {0x50, 0, TM_PROB_MAX, 1, 1, "Prob"},
+    [P_LEN]       = {0x51, TM_LEN_MIN, TM_LEN_MAX, 1, 0, "Len"},
+    [P_RATE]      = {0x52, 0, TM_NUM_DIVS - 1, 1, 0, "Rate"},
+    [P_RANGE]     = {0x5B, TM_RANGE_MIN, TM_RANGE_MAX, 1, 0, "Rng"},
+    [P_GATE]      = {0x5D, TM_GATE_MIN, TM_GATE_MAX, TM_GATE_STEP, 0, "Gte"},
+    [P_HEADS]     = {0x5E, 0, TM_NUM_HEADS - 1, 1, 0, "Hds"},
+    [P_OCT]       = {0x5A, 0, TM_OCT_MAX, 1, 0, 0},
+    [P_MASK]      = {0x5F, 0, 0x7F, 1, 0, 0},
+    [P_CHAN]      = {TM_CHANNEL_PARAM, 0, 15, 1, 0, 0},
+    [P_NOTE8_OFF] = {0x62, 0, 1, 1, 0, 0},
+    [P_VEL]       = {0x63, 0, TM_VEL_MAX, TM_VEL_STEP, 0, "Vel"},
+    [P_ENABLE]    = {0x41, 0, 1, 1, 0, 0},
+    [P_ROT]       = {0, 0, 0, 1, 0, "Rot"},
+};
+/* encoders 1..8 */
+static const uint8_t enc_param[ENC_COUNT] = {P_PROB, P_LEN, P_RATE, P_RANGE, P_GATE, P_HEADS, P_ROT, P_VEL};
 #define PARAM_MAGIC_ID    0x60        /* != PARAM_MAGIC: stored values are not ours -> defaults */
 #define PARAM_MAGIC       0x5A
 #define PARAM_PERSISTENT  3           /* definition flags: defined | persistent */
@@ -133,6 +155,16 @@ static char *put_num(char *p, uint32_t v)
     return p;
 }
 
+static int clamp(int v, int lo, int hi)
+{
+    return v < lo ? lo : v > hi ? hi : v;
+}
+
+static int wrap(int v, int n)
+{
+    return (v % n + n) % n;
+}
+
 static uint32_t feat_get(uint32_t id)
 {
     fw_param_t p;
@@ -160,33 +192,43 @@ static uint32_t param_value(int p)
     case P_VEL:   return tm.vel;
     case P_ENABLE: return !st.enabled;
     case P_MASK:  return tm.mask & 0x7F;
-    default:      return !(tm.mask & NOTE8_BIT);
+    case P_NOTE8_OFF: return !(tm.mask & NOTE8_BIT);
+    case P_ROT:   return st.rot;
+    default:      return 0;
     }
 }
 
-static int clamp(int v, int lo, int hi);
-
-static void param_apply(int p, uint32_t v)
+/* Set a stored parameter (from an encoder, a button or the settings store / host), clamped to its range. */
+static void param_apply(int p, int value)
 {
+    uint8_t v = (uint8_t)clamp(value, params[p].min, params[p].max);
     switch (p) {
-    case P_PROB:  tm.prob = (uint8_t)clamp((int)v, 0, TM_PROB_MAX); break;
-    case P_LEN:   tm.len = (uint8_t)clamp((int)v, TM_LEN_MIN, TM_LEN_MAX); break;
-    case P_RATE:  tm.div = (uint8_t)clamp((int)v, 0, TM_NUM_DIVS - 1); break;
-    case P_OCT:   tm.octave = (uint8_t)clamp((int)v, 0, TM_OCT_MAX); break;
-    case P_RANGE: tm.range = (uint8_t)clamp((int)v, TM_RANGE_MIN, TM_RANGE_MAX); break;
-    case P_GATE:  tm.gate = (uint8_t)clamp((int)v, TM_GATE_MIN, TM_GATE_MAX); break;
-    case P_HEADS: tm.heads = (uint8_t)clamp((int)v, 0, TM_NUM_HEADS - 1); break;
-    case P_MASK:  tm.mask = (uint8_t)((v & 0x7F) | (tm.mask & NOTE8_BIT)); break;
+    case P_PROB:  tm.prob = v; break;
+    case P_LEN:
+        if (v == tm.len)
+            break;
+        tm.len = v;
+        tm_tile(&tm);
+        st.pos = (uint8_t)(st.pos % v);
+        st.rot = (uint8_t)(st.rot % v);
+        break;
+    case P_RATE:  tm.div = v; break;
+    case P_OCT:   tm.octave = v; break;
+    case P_RANGE: tm.range = v; break;
+    case P_GATE:  tm.gate = v; break;
+    case P_HEADS: tm.heads = v; break;
+    case P_MASK:  tm.mask = (uint8_t)(v | (tm.mask & NOTE8_BIT)); break;
     case P_NOTE8_OFF: tm.mask = (uint8_t)((tm.mask & 0x7F) | (v ? 0 : NOTE8_BIT)); break;
-    case P_CHAN:  midi_channel = (uint8_t)(v & 0x0F); break;
-    case P_VEL:   tm.vel = (uint8_t)clamp((int)v, 0, TM_VEL_MAX); break;
+    case P_CHAN:  midi_channel = v; break;
+    case P_VEL:   tm.vel = v; break;
     case P_ENABLE: st.enabled = v == 0; break;     /* tm_mode_poll releases a muted note */
     }
 }
 
 static void param_save(int p)
 {
-    feat_set(param_id[p], param_value(p), 0);
+    if (params[p].id)
+        feat_set(params[p].id, param_value(p), 0);
 }
 
 /* Stored values valid -> load them; otherwise (first boot, old settings record) store ours. */
@@ -194,7 +236,8 @@ static void param_sync(void)
 {
     if (feat_get(PARAM_MAGIC_ID) == PARAM_MAGIC) {
         for (int p = 0; p < P_COUNT; p++)
-            param_apply(p, feat_get(param_id[p]));
+            if (params[p].id)
+                param_apply(p, (int)feat_get(params[p].id));
     } else {
         for (int p = 0; p < P_COUNT; p++)
             param_save(p);
@@ -208,11 +251,6 @@ static const uint8_t *scale_semis(void)
     if (type < 1 || type > 30)
         type = 1;
     return g_scale_intervals[type];
-}
-
-static int clamp(int v, int lo, int hi)
-{
-    return v < lo ? lo : v > hi ? hi : v;
 }
 
 /* ---- output ---- */
@@ -314,11 +352,9 @@ static void popup(const char *title, const char *value)
     disp_text(1, 1, value);
 }
 
-/* p = P_PROB..P_OCT (encoders 1..6 = P_PROB..P_HEADS) */
 /* Mode popup: title + short encoder labels in the stock 8-field overview layout (template 4:
  * field 0 = title, fields 1..4 / 5..8 = encoders 1..4 / 5..8, 32 px each). */
 #define TEMPLATE_OVERVIEW 4
-static const char *const enc_labels[8] = {"Prob", "Len", "Rate", "Rng", "Gte", "Hds", "Rot", "Vel"};
 
 static void popup_overview(void)
 {
@@ -326,8 +362,8 @@ static void popup_overview(void)
     draw_buttons();
     disp_set_screen(1, TEMPLATE_OVERVIEW);
     disp_text(1, 0, "Turing Machine");
-    for (uint32_t i = 0; i < 8; i++)
-        disp_text(1, 1 + i, enc_labels[i]);
+    for (uint32_t i = 0; i < ENC_COUNT; i++)
+        disp_text(1, 1 + i, params[enc_param[i]].label);
 }
 
 static void show_param(int param)
@@ -384,9 +420,33 @@ static void show_param(int param)
         title = "Trig Heads";
         p = put_str(p, tm_heads[tm.heads].name);
         break;
+    case P_ROT:
+        title = "Rotate";
+        p = put_num(put_str(p, "Step "), st.rot + 1u);
+        break;
     }
     *p = 0;
     popup(title, v);
+}
+
+/* Rotating the register while keeping pos moves the step MIDI Start rewinds to. */
+static void rotate(int delta)
+{
+    tm_rewind(&tm, wrap(-delta, tm.len));       /* CW = forward = rewind by len - 1 */
+    st.rot = (uint8_t)wrap(st.rot + delta, tm.len);
+}
+
+/* An encoder or button changes parameter p by delta steps. */
+static void param_change(int p, int delta)
+{
+    if (p == P_ROT) {
+        rotate(delta);          /* an action on the register, not a stored value */
+    } else {
+        param_apply(p, (int)param_value(p) + delta * params[p].step);
+        param_save(p);
+    }
+    draw_all();
+    show_param(p);
 }
 
 /* ---- sequencing ---- */
@@ -511,15 +571,24 @@ static int menu_owns_button(uint32_t id)
     return menu_owns(id) && menu_owns(0);
 }
 
+static int is_enc(uint32_t id)
+{
+    return id >= ENC_FIRST && id < ENC_FIRST + ENC_COUNT;
+}
+
+/* Bit index in st.owned: pads, then encoders, then the mode buttons. */
+#define SLOT_ENC  PAD_COUNT
+#define SLOT_BTN  (SLOT_ENC + ENC_COUNT)
+
 static int ctl_slot(uint32_t id)
 {
     if (id < PAD_COUNT)
         return (int)id;
-    if (id >= ENC_FIRST && id < ENC_FIRST + ENC_COUNT)
-        return (int)(PAD_COUNT + id - ENC_FIRST);
+    if (is_enc(id))
+        return (int)(SLOT_ENC + id - ENC_FIRST);
     for (uint32_t i = 0; i < BTN_COUNT; i++)
         if (id == buttons[i])
-            return (int)(PAD_COUNT + ENC_COUNT + i);
+            return (int)(SLOT_BTN + i);
     return -1;
 }
 
@@ -565,10 +634,7 @@ static void button_pressed(uint32_t id)
         break;
     case BTN_OCT_UP:
     case BTN_OCT_DOWN:
-        tm.octave = (uint8_t)clamp(tm.octave + (id == BTN_OCT_UP ? 1 : -1), 0, TM_OCT_MAX);
-        param_save(P_OCT);
-        draw_buttons();
-        show_param(P_OCT);
+        param_change(P_OCT, id == BTN_OCT_UP ? 1 : -1);
         break;
     }
 }
@@ -583,108 +649,52 @@ static void button_released(uint32_t id)
     }
 }
 
-/* list: 0 = press (A), 1 = B, 2 = release (C), 3 = D. Returns TM_PASS / TM_CONSUME / TM_ENC_ONLY. */
+/* list = TM_IO_*. Returns TM_PASS / TM_CONSUME / TM_ENC_ONLY. */
 int tm_io_event(int list, uint32_t id, uint32_t value)
 {
     (void)value;
     int slot = ctl_slot(id);
     if (slot < 0) {
-        if (list == 0 && id != CTL_SHIFT)
+        if (list == TM_IO_PRESS && id != CTL_SHIFT)
             st.priority = 0;    /* any other button may open a menu: menus win again */
         return TM_PASS;
     }
     uint32_t bit = 1u << slot;
-    if (list == 0) {            /* the press decides who owns the control until its release */
-        int is_enc = id >= ENC_FIRST && id < ENC_FIRST + ENC_COUNT;
+    if (list == TM_IO_PRESS) {  /* the press decides who owns the control until its release */
         int take;
         if (st.shift)           /* Shift + encoder = show value; the Shift overlay's capture doesn't count */
-            take = st.active && is_enc;
+            take = st.active && is_enc(id);
         else
-            take = st.active &&
-                   !(slot >= PAD_COUNT + ENC_COUNT ? menu_owns_button(id) : menu_owns(id));
+            take = st.active && !(slot >= SLOT_BTN ? menu_owns_button(id) : menu_owns(id));
         st.owned = take ? st.owned | bit : st.owned & ~bit;
-        if (take && id < PAD_COUNT)
+        if (take && slot < SLOT_ENC)
             pad_pressed(id);
-        else if (take && slot >= PAD_COUNT + ENC_COUNT)
+        else if (take && slot >= SLOT_BTN)
             button_pressed(id);
     }
     if (!(st.owned & bit))
         return TM_PASS;
-    if (list == 2) {
+    if (list == TM_IO_RELEASE) {
         st.owned &= ~bit;
-        if (slot >= PAD_COUNT + ENC_COUNT)
+        if (slot >= SLOT_BTN)
             button_released(id);
     }
-    return id >= ENC_FIRST && id < ENC_FIRST + ENC_COUNT ? TM_ENC_ONLY : TM_CONSUME;
+    return is_enc(id) ? TM_ENC_ONLY : TM_CONSUME;
 }
 
-/* list: 0 = pos (every tick), 1 = hires, 2 = step (per detent). Returns 1 if consumed. */
-/* Popup with the value of encoder enc (0..7). */
-static void show_enc(int enc)
-{
-    if (enc == ENC_ROTATE) {
-        char v[20], *p = put_num(put_str(v, "Step "), st.rot + 1u);
-        *p = 0;
-        popup("Rotate", v);
-    } else {
-        show_param(enc == ENC_VEL ? P_VEL : enc);
-    }
-}
-
+/* list = TM_REL_*. Each encoder changes its parameter (enc_param), per tick or per detent. */
 int tm_enc_event(int list, uint32_t id, int32_t delta)
 {
     delta = (int16_t)delta;     /* the encoder module passes deltas as u16 (-1 = 0xFFFF) */
-    if (!st.active || id < ENC_FIRST || id >= ENC_FIRST + ENC_COUNT || (!st.shift && menu_owns(id)))
+    if (!st.active || !is_enc(id) || (!st.shift && menu_owns(id)))
         return 0;
-    int enc = (int)(id - ENC_FIRST);    /* == param index P_PROB..P_HEADS */
-    if (st.shift) {             /* Shift + turn: show the value without changing it */
-        if (list == 2)
-            show_enc(enc);
+    int p = enc_param[id - ENC_FIRST];
+    if (list != (params[p].fine ? TM_REL_POS : TM_REL_STEP))
         return 1;
-    }
-    if (enc == ENC_VEL) {
-        if (list != 2)
-            return 1;
-        tm.vel = (uint8_t)clamp(tm.vel + delta * TM_VEL_STEP, 0, TM_VEL_MAX);
-        param_save(P_VEL);
-        show_param(P_VEL);
-        return 1;
-    }
-    if (enc == ENC_ROTATE) {
-        if (list != 2)
-            return 1;
-        /* rotating the register while keeping pos moves the step MIDI Start rewinds to */
-        int n = ((-delta) % tm.len + tm.len) % tm.len;      /* CW = forward = rewind by len - 1 */
-        tm_rewind(&tm, n);
-        st.rot = (uint8_t)(((st.rot + delta) % tm.len + tm.len) % tm.len);
-        draw_register();
-        show_enc(ENC_ROTATE);
-        return 1;
-    }
-    if (enc == P_PROB) {
-        if (list != 0)
-            return 1;
-        tm.prob = (uint8_t)clamp(tm.prob + delta, 0, TM_PROB_MAX);
-        param_save(P_PROB);
-    } else {
-        if (list != 2)
-            return 1;
-        switch (enc) {
-        case P_LEN:
-            tm.len = (uint8_t)clamp(tm.len + delta, TM_LEN_MIN, TM_LEN_MAX);
-            tm_tile(&tm);
-            st.pos = (uint8_t)(st.pos % tm.len);
-            st.rot = (uint8_t)(st.rot % tm.len);
-            draw_register();
-            break;
-        case P_RATE:  tm.div = (uint8_t)clamp(tm.div + delta, 0, TM_NUM_DIVS - 1); break;
-        case P_RANGE: tm.range = (uint8_t)clamp(tm.range + delta, TM_RANGE_MIN, TM_RANGE_MAX); break;
-        case P_GATE:  tm.gate = (uint8_t)clamp(tm.gate + delta * TM_GATE_STEP, TM_GATE_MIN, TM_GATE_MAX); break;
-        case P_HEADS: tm.heads = (uint8_t)clamp(tm.heads + delta, 0, TM_NUM_HEADS - 1); break;
-        }
-        param_save(enc);
-    }
-    show_param(enc);
+    if (st.shift)               /* Shift + turn: show the value without changing it */
+        show_param(p);
+    else
+        param_change(p, delta);
     return 1;
 }
 
@@ -692,8 +702,8 @@ void tm_feat_changed(uint32_t id, uint32_t value)
 {
     switch (id) {
     case FEAT_PAD_MODE:
-        set_active(value == PAD_CUSTOM4);
-        if (value == PAD_CUSTOM4) {     /* (re)selected: take the controls back from any menu */
+        set_active(value == TM_PAD_MODE);
+        if (value == TM_PAD_MODE) {     /* (re)selected: take the controls back from any menu */
             st.priority = 1;
             st.menu_pads = 0;
             st.popup_pending = 1;
@@ -717,11 +727,15 @@ void tm_feat_changed(uint32_t id, uint32_t value)
     default:
         if (feat_get(PARAM_MAGIC_ID) != PARAM_MAGIC)
             break;                  /* not ours yet: param_sync stores the defaults */
-        for (int p = 0; p < P_COUNT; p++)
-            if (id == param_id[p])
-                param_apply(p, value);
-        if ((id == param_id[P_OCT] || id == param_id[P_ENABLE]) && st.active)
-            draw_buttons();
+        for (int p = 0; p < P_COUNT; p++) {     /* also set by the host (channel-7 CCs) */
+            if (params[p].id && id == params[p].id) {
+                uint32_t old = param_value(p);
+                param_apply(p, (int)value);
+                if (st.active && param_value(p) != old)    /* not the echo of our own param_save */
+                    draw_all();
+                break;
+            }
+        }
         break;
     }
 }
@@ -735,7 +749,8 @@ void tm_mode_init(void)
     /* Define the persistent params at feature-init time like the stock features do, so
      * confstore restores them (and re-applies them through the listener) after loading. */
     for (int p = 0; p < P_COUNT; p++)
-        feat_set(param_id[p], param_value(p), PARAM_PERSISTENT);
+        if (params[p].id)
+            feat_set(params[p].id, param_value(p), PARAM_PERSISTENT);
     feat_set(PARAM_MAGIC_ID, PARAM_MAGIC, PARAM_PERSISTENT);
 }
 
@@ -746,7 +761,7 @@ void tm_mode_poll(void)
     if (!started) {
         started = 1;
         param_sync();
-        set_active(feat_get(FEAT_PAD_MODE) == PAD_CUSTOM4);
+        set_active(feat_get(FEAT_PAD_MODE) == TM_PAD_MODE);
     }
     uint8_t event = transport_event;
     if (event) {

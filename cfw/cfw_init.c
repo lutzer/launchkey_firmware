@@ -35,11 +35,10 @@ uint32_t cfw_boot_version(char *buf, uint32_t pos, uint32_t size, const uint32_t
 
 /* Hooks: layout-name text (mode popups, home screen). Pad Custom 4 is Turing Machine mode. */
 #define LAYOUT_PADS    1
-#define PAD_CUSTOM4    8
 
 static int is_tm_layout(uint32_t index, uint32_t type)
 {
-    return (type & 0xFF) == LAYOUT_PADS && index == PAD_CUSTOM4;
+    return (type & 0xFF) == LAYOUT_PADS && index == TM_PAD_MODE;
 }
 
 void cfw_layout_name_a(uint32_t screen, uint32_t field, uint32_t index, uint32_t type)
@@ -114,7 +113,7 @@ static void call_list2(const io_list_t *l, uint32_t id, uint32_t v)
 
 void cfw_io_dispatch_a(uint32_t id, uint32_t v)
 {
-    int r = tm_io_event(0, id, v);
+    int r = tm_io_event(TM_IO_PRESS, id, v);
     if (r == TM_PASS)
         call_list2(&g_io_list_a, id, v);
     else if (r == TM_ENC_ONLY)
@@ -123,13 +122,13 @@ void cfw_io_dispatch_a(uint32_t id, uint32_t v)
 
 void cfw_io_dispatch_b(uint32_t id, uint32_t v)
 {
-    if (tm_io_event(1, id, v) == TM_PASS)
+    if (tm_io_event(TM_IO_B, id, v) == TM_PASS)
         call_list2(&g_io_list_b, id, v);
 }
 
 void cfw_io_dispatch_d(uint32_t id, uint32_t v)
 {
-    int r = tm_io_event(3, id, v);
+    int r = tm_io_event(TM_IO_D, id, v);
     if (r == TM_PASS)
         call_list2(&g_io_list_d, id, v);
     else if (r == TM_ENC_ONLY)
@@ -138,7 +137,7 @@ void cfw_io_dispatch_d(uint32_t id, uint32_t v)
 
 void cfw_io_dispatch_c(uint32_t id)
 {
-    int r = tm_io_event(2, id, 0);
+    int r = tm_io_event(TM_IO_RELEASE, id, 0);
     if (r == TM_ENC_ONLY) {
         relin_io_listener_c(id);
     } else if (r == TM_PASS) {
@@ -155,18 +154,18 @@ static void call_list3(const io_list_t *l, uint32_t id, uint32_t v, int32_t d)
 
 void cfw_relin_dispatch_pos(uint32_t id, uint32_t v, int32_t d)
 {
-    if (!tm_enc_event(0, id, d))
+    if (!tm_enc_event(TM_REL_POS, id, d))
         call_list3(&g_relin_list_pos, id, v, d);
 }
 
 void cfw_relin_dispatch_hires(uint32_t id, uint32_t v, int32_t d)
 {
-    if (!tm_enc_event(1, id, d))
+    if (!tm_enc_event(TM_REL_HIRES, id, d))
         call_list3(&g_relin_list_hires, id, v, d);
 }
 
 void cfw_relin_dispatch_step(uint32_t id, uint32_t v, int32_t d)
 {
-    if (!tm_enc_event(2, id, d))
+    if (!tm_enc_event(TM_REL_STEP, id, d))
         call_list3(&g_relin_list_step, id, v, d);
 }

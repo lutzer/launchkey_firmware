@@ -181,6 +181,12 @@
   XOR(0,1/2), AND(0,1/2), AND(0,1/2)&OR(1/4,3/4), AND(0,1/3,2/3); a head at fraction f reads bit f*len (min 1
   after the first), i.e. bit 0 delayed - fixed bits collapsed on short loops (len 3: bit 3 = bit 0). The note lasts gate % of
   the step (5..95 %) and is always released before the next step (no ties). Encoder 8 = velocity depth: velocity = 100 blended with the 7-bit window reg bits 4..10 (tm_velocity).
+- Parameters are table-driven (`params[]` in tm_mode.c: feature id, range, step, per-tick vs per-detent, popup
+  label); `enc_param[]` maps encoders 1..8 to them, so remapping an encoder is one table entry. Every change
+  (encoders, octave arrows) goes through `param_change`; `param_apply` clamps and holds the side effects
+  (length: tile + pos/rot mod len), so host CC writes behave like the encoders and redraw the LEDs.
+  `param_save` fires our own feature listener too; it redraws only when the value really changed (no double draw).
+  Probability reacts per tick (finer), the rest per detent. Rotate (`P_ROT`) is not stored: it rotates the register.
 - Pitch: register value (bits 0..7) picks a pitch 0..range semitones above the root (range 1..48, 12 = one
   octave), quantised to the closest enabled scale note in pitch (tie -> lower, inside 0..range when one exists).
   All off = rest. (Until 2026-11-11 range counted scale notes; stored values carry over as semitones.)
