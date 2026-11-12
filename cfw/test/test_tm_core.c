@@ -156,7 +156,7 @@ static void test_flip(void)
 }
 
 /* After a flip the locked loop repeats exactly from the next step on: pitch (bits 0..7) and
- * velocity (bits 4..10) must not wait for stale copies above the loop to shift out. */
+ * velocity (any head) must not wait for stale copies above the loop to shift out. */
 static void test_flip_instant(void)
 {
     for (int len = TM_LEN_MIN; len <= TM_LEN_MAX; len++)
@@ -164,6 +164,7 @@ static void test_flip_instant(void)
             tm_t tm;
             tm_init(&tm, 900 + len * 16 + bit);
             tm.len = len; tm.prob = TM_PROB_MAX; tm.range = TM_RANGE_MAX; tm.vel = TM_VEL_MAX;
+            tm.vel_head = (uint8_t)((len + bit) % TM_VEL_HEADS);
             for (int i = 0; i < 37; i++)
                 tm_step(&tm);
             tm_flip(&tm, bit);
@@ -243,6 +244,22 @@ static void test_velocity(void)
     CHECK(tm_velocity(&tm) == 1, "window 0 -> velocity 1");
     tm.reg = 0x07F0;
     CHECK(tm_velocity(&tm) == 127, "window 127 -> velocity 127");
+
+    tm_init(&tm, 1);
+    CHECK(tm.vel_head == 0 && tm_vel_shift(&tm) == TM_VEL_SHIFT, "head 0 = bits 4..10");
+    tm.vel = TM_VEL_MAX;
+    int seen = 0;
+    for (int h = 0; h < TM_VEL_HEADS; h++) {
+        tm.vel_head = (uint8_t)h;
+        int s = tm_vel_shift(&tm);
+        CHECK(s >= 0 && s + 7 <= 16, "head %d: window at bit %d leaves the register", h, s);
+        seen |= 1 << s;
+        tm.reg = (uint16_t)(0x7Fu << s);
+        CHECK(tm_velocity(&tm) == 127, "head %d: window all ones -> 127", h);
+        tm.reg = (uint16_t)~(0x7Fu << s);
+        CHECK(tm_velocity(&tm) == 1, "head %d: window all zeros -> 1", h);
+    }
+    CHECK(seen == (1 << TM_VEL_HEADS) - 1, "every window position must be reachable");
 }
 
 static void test_heads(void)

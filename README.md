@@ -30,7 +30,7 @@ value picks a note from the current scale, and trigger heads decide whether a st
 
 | Control | Function |
 |---|---|
-| Top row (green) | Register bits 1–8, moving one pad to the right per step. The **yellow** pad is the step the sequence restarts from (MIDI Start / reset), so it moves along too and follows Rotate; also while Function is held. Dark = beyond the loop length. |
+| Top row (green) | Register bits 1–8, moving one pad to the right per step. The **yellow** pad is the step the sequence restarts from (MIDI Start / reset), so it moves along too; also while Function is held. Dark = beyond the loop length. |
 | Bottom row (white) | **Scale notes** (pad 1 = root, pad 8 = 8th note of 8-note scales). Press to switch a note on (bright) or off (dim); pads beyond the scale are dark. A disabled note is replaced by the closest enabled note. With Scale off all eight pads are lit and all 12 semitones are used. |
 | **Play** (transport) | **Start / stop** the sequencer, in every pad mode. Start begins at the first step of the loop (the yellow pad) on the next clock tick. Without a DAW connection Play also sends MIDI Start / Stop as usual. |
 | **>** (above Function) | **Enable / disable** the sequencer (bright = enabled). Disabled **mutes** its notes; everything else keeps going (clock, Play, MIDI Start / Stop, the pattern on the pads), so enabling it again brings the notes back in time. Saved. |
@@ -47,8 +47,8 @@ value picks a note from the current scale, and trigger heads decide whether a st
 | 4 | Range | +1 … +48 semitones above the root (+12 = one octave, +24 = two, +36 = three, +48 = four); the register picks a pitch in that span and it is moved to the closest enabled scale note (staying inside the span when possible) |
 | 5 | Gate length | 5–95 % of a step (notes are never tied) |
 | 6 | Trigger heads (turn right = sparser) | **Every** step · **OR 3** (~88 %) · **OR 2** (~75 %) · **Bit 1** (~50 %, like the module) · **XOR** (~50 %, different rhythm) · **AND 2** (~25 %) · **AND 2+** (~19 %) · **AND 3** (~12 %). The heads sit at fixed fractions of the loop (start, ½, ⅓ and ⅔, ¼ and ¾) and combine what they read, so the rhythm loops and mutates with the pattern at any length. |
-| 7 | Rotate | Shifts the loop one step per detent without changing bits, i.e. chooses the step that MIDI Start returns to (shown as "Step n") |
-| 8 | Velocity depth | Fixed (velocity 100) … 100 % in 5 % steps: blends in a velocity read from a shifted window of the register (bits 5–11), so accents loop and change with the pattern |
+| 7 | Velocity depth | Fixed (velocity 100) … 100 % in 5 % steps: blends in a velocity read from a 7-bit window of the register (see encoder 8), so accents loop and change with the pattern |
+| 8 | Velocity head | Moves the window the velocity is read from (shown as "Bits 5-11" … "Bits 10-16", then "Bits 1-7" … "Bits 4-10"): each position gives a different accent pattern from the same loop. Only audible with velocity depth above 0. |
 
 Turning an encoder shows its value on the display.
 

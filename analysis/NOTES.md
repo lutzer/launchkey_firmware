@@ -175,29 +175,30 @@
 
 ## Turing Machine mode (cfw, pad mode Custom 4)
 
-- `cfw/tm_mode.c` + `cfw/tm_core.c`. Top pads = register bits 0..7 (bit 0 newest = pad 1, green; press flips); yellow = the bit of the first step played after a rewind (Start/Play reset): `tm_start_bit` = (len - 1 + pos) % len, rotation included since it rotates the register under pos; the Function view subtracts frozen_steps,
+- `cfw/tm_mode.c` + `cfw/tm_core.c`. Top pads = register bits 0..7 (bit 0 newest = pad 1, green; press flips); yellow = the bit of the first step played after a rewind (Start/Play reset): `tm_start_bit` = (len - 1 + pos) % len; the Function view subtracts frozen_steps,
   bottom pads = scale notes (white; press toggles), encoders 1..8 = probability, length, rate (4/1..1/32,
-  CW = faster), range, gate, trigger heads, rotate, velocity; octave on the up/down arrows. Trigger modes (tm_heads, dense -> sparse): Every, OR(0,1/3,2/3), OR(0,1/2), 0,
+  CW = faster), range, gate, trigger heads, velocity depth, velocity head; octave on the up/down arrows. Trigger modes (tm_heads, dense -> sparse): Every, OR(0,1/3,2/3), OR(0,1/2), 0,
   XOR(0,1/2), AND(0,1/2), AND(0,1/2)&OR(1/4,3/4), AND(0,1/3,2/3); a head at fraction f reads bit f*len (min 1
   after the first), i.e. bit 0 delayed - fixed bits collapsed on short loops (len 3: bit 3 = bit 0). The note lasts gate % of
-  the step (5..95 %) and is always released before the next step (no ties). Encoder 8 = velocity depth: velocity = 100 blended with the 7-bit window reg bits 4..10 (tm_velocity).
+  the step (5..95 %) and is always released before the next step (no ties). Encoder 7 = velocity depth: velocity = 100 blended with a 7-bit register window (tm_velocity). Encoder 8 =
+  velocity head 0..9 moves that window: lowest bit `tm_vel_shift` = (4 + head) % 10, so head 0 = bits 4..10 (the
+  window before the head existed; old records read 0). Encoder 7 was Rotate until 2026-11-12 (removed).
 - Parameters are table-driven (`params[]` in tm_mode.c: feature id, range, step, per-tick vs per-detent, popup
   label); `enc_param[]` maps encoders 1..8 to them, so remapping an encoder is one table entry. Every change
   (encoders, octave arrows) goes through `param_change`; `param_apply` clamps and holds the side effects
-  (length: tile + pos/rot mod len), so host CC writes behave like the encoders and redraw the LEDs.
+  (length: tile + pos mod len), so host CC writes behave like the encoders and redraw the LEDs.
   `param_save` fires our own feature listener too; it redraws only when the value really changed (no double draw).
-  Probability reacts per tick (finer), the rest per detent. Rotate (`P_ROT`) is not stored: it rotates the register.
+  Probability reacts per tick (finer), the rest per detent.
 - Pitch: register value (bits 0..7) picks a pitch 0..range semitones above the root (range 1..48, 12 = one
   octave), quantised to the closest enabled scale note in pitch (tie -> lower, inside 0..range when one exists).
   All off = rest. (Until 2026-11-11 range counted scale notes; stored values carry over as semitones.)
 - **Button ids** (DAW-mode CC map 0x0801C180, ctl -> CC: 0x22 -> 106 up, 0x23 -> 107 down, 0x10 -> 104
   scene launch ">", 0x11 -> 105 Function): **">" 16 = enable/disable** (feature 0x41 = disabled, saved; disabled = notes muted
   only (note_on skipped, sounding note released); clock, transport and Play keep running), **Play 0x48 = start/stop** (see below), **Function 17 =
-  hold**, **up 34 / down 35 = octave** (stored 0..8, shown -4..+4, 4 = 0 = base MIDI 48 like the keyboard default); encoder 7 = rotate (register rotated while the step count since the
-  loop start stays, so MIDI Start rewinds to a shifted start; loop start = power-on or last Start). Their LEDs are driven through the same override layer (white).
+  hold**, **up 34 / down 35 = octave** (stored 0..8, shown -4..+4, 4 = 0 = base MIDI 48 like the keyboard default); loop start = power-on or last Start. Their LEDs are driven through the same override layer (white).
   While Function is held both rows show register bits 0..15 (frozen) and pad presses flip them.
-  Flips, rotate, Start rewind and length changes tile the loop over all 16 bits (`tm_tile`: bit k = bit k - len,
-  the locked state): pitch reads bits 0..7 and velocity 4..10, beyond short loops, so stale copies there made
+  Flips, Start rewind and length changes tile the loop over all 16 bits (`tm_tile`: bit k = bit k - len,
+  the locked state): pitch reads bits 0..7 and velocity up to bit 15, beyond short loops, so stale copies there made
   edits fade in over several steps.
   The keyboard-octave popup captures the arrows (ctl_is_blocked 34/35), so the four mode buttons only yield
   to a menu that has captured pad 0 too (Settings etc.).
@@ -227,7 +228,7 @@
   third port (stack sp+0x50, raw-byte mode, serial ring -> USART6 @31250 baud via DMA) and links it to the MIDI
   port (`port+0x18`, `0x08013EE8`); `midi_send3` walks that chain, so MIDI-port notes also go out on DIN.
 - **Persistence:** feature params 0x50 prob, 0x51 length, 0x52 rate, 0x5A octave, 0x5B range, 0x5D gate,
-  0x5E trigger heads, 0x5F note mask (7 bits), 0x61 MIDI channel, 0x62 note 8 off, 0x63 velocity depth, 0x41 disabled
+  0x5E trigger heads, 0x5F note mask (7 bits), 0x61 MIDI channel, 0x62 note 8 off, 0x63 velocity depth, 0x42 velocity head, 0x41 disabled
   (inverted: records from before it read 0 = enabled), 0x60 marker (0x5A), defined with flags 3 in cfw_init. Marker
   missing (first boot / older settings record) -> defaults are stored. Ids 0x20..0x3F avoided: they alias the
   LSBs of 14-bit params 0x00..0x1F.

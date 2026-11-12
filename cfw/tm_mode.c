@@ -13,10 +13,9 @@
  *   Play (0x48)        start from the first step / stop, in every mode (cfw_play_press); the
  *                      sequencer starts stopped
  *   up/down (34/35)    octave
- *   encoders 1..8      probability, length, rate, range, gate length, trigger heads, rotate,
- *                      velocity depth (velocity from register bits 4..10, see tm_velocity)
- *                      (rotate shifts the loop without flipping bits, i.e. moves the step that
- *                      MIDI Start returns to); mapping and ranges: params[] / enc_param[]
+ *   encoders 1..8      probability, length, rate, range, gate length, trigger heads, velocity
+ *                      depth, velocity head (moves the register window velocity is read from,
+ *                      see tm_velocity); mapping and ranges: params[] / enc_param[]
  * MIDI transport (also while another pad mode is shown or disabled): Start = back to the first
  * step, which plays on the next clock tick (the downbeat), Continue = resume, Stop = pause.
  * Outside the mode the LEDs and popups are left to the stock firmware.
@@ -70,9 +69,9 @@
  * Persistent ones are feature params (free ids >= 0x40: ids 0x20..0x3F double as 14-bit LSBs).
  * Feature values are 7 bits: P_MASK holds notes 1..7, P_NOTE8_OFF the 8th note inverted (records
  * from before it existed read 0 = on, as the 8th note used to be always on). P_ENABLE is stored
- * inverted too (0 = enabled), for the same reason. P_ROT is not stored: it rotates the register. */
+ * inverted too (0 = enabled), for the same reason. P_VEL_HEAD 0 = the window before it existed. */
 enum { P_PROB, P_LEN, P_RATE, P_RANGE, P_GATE, P_HEADS, P_OCT, P_MASK, P_CHAN, P_NOTE8_OFF, P_VEL, P_ENABLE,
-       P_ROT, P_COUNT };
+       P_VEL_HEAD, P_COUNT };
 typedef struct {
     uint8_t id;             /* feature param id, 0 = not stored */
     uint8_t min, max;       /* stored value range (feature values are 7 bits, so max <= 127) */
@@ -85,18 +84,18 @@ static const param_def_t params[P_COUNT] = {
     [P_LEN]       = {0x51, TM_LEN_MIN, TM_LEN_MAX, 1, 0, "Len"},
     [P_RATE]      = {0x52, 0, TM_NUM_DIVS - 1, 1, 0, "Rate"},
     [P_RANGE]     = {0x5B, TM_RANGE_MIN, TM_RANGE_MAX, 1, 0, "Rng"},
-    [P_GATE]      = {0x5D, TM_GATE_MIN, TM_GATE_MAX, TM_GATE_STEP, 0, "Gte"},
-    [P_HEADS]     = {0x5E, 0, TM_NUM_HEADS - 1, 1, 0, "Hds"},
+    [P_GATE]      = {0x5D, TM_GATE_MIN, TM_GATE_MAX, TM_GATE_STEP, 0, "Gate"},
+    [P_HEADS]     = {0x5E, 0, TM_NUM_HEADS - 1, 1, 0, "Head"},
     [P_OCT]       = {0x5A, 0, TM_OCT_MAX, 1, 0, 0},
     [P_MASK]      = {0x5F, 0, 0x7F, 1, 0, 0},
     [P_CHAN]      = {TM_CHANNEL_PARAM, 0, 15, 1, 0, 0},
     [P_NOTE8_OFF] = {0x62, 0, 1, 1, 0, 0},
     [P_VEL]       = {0x63, 0, TM_VEL_MAX, TM_VEL_STEP, 0, "Vel"},
     [P_ENABLE]    = {0x41, 0, 1, 1, 0, 0},
-    [P_ROT]       = {0, 0, 0, 1, 0, "Rot"},
+    [P_VEL_HEAD]  = {0x42, 0, TM_VEL_HEADS - 1, 1, 0, "VHd"},
 };
 /* encoders 1..8 */
-static const uint8_t enc_param[ENC_COUNT] = {P_PROB, P_LEN, P_RATE, P_RANGE, P_GATE, P_HEADS, P_ROT, P_VEL};
+static const uint8_t enc_param[ENC_COUNT] = {P_PROB, P_LEN, P_RATE, P_RANGE, P_GATE, P_HEADS, P_VEL, P_VEL_HEAD};
 #define PARAM_MAGIC_ID    0x60        /* != PARAM_MAGIC: stored values are not ours -> defaults */
 #define PARAM_MAGIC       0x5A
 #define PARAM_PERSISTENT  3           /* definition flags: defined | persistent */
@@ -121,7 +120,6 @@ static struct {
     uint16_t frozen_reg;     /* register as shown while frozen */
     uint16_t frozen_steps;   /* steps since freezing */
     uint8_t pos;             /* steps since the loop start, mod length (for rewinding) */
-    uint8_t rot;             /* rotation since the loop start, mod length (display only) */
     uint8_t popup_pending;   /* show the mode popup from the main loop, after the stock one */
 } st;
 
@@ -160,11 +158,6 @@ static int clamp(int v, int lo, int hi)
     return v < lo ? lo : v > hi ? hi : v;
 }
 
-static int wrap(int v, int n)
-{
-    return (v % n + n) % n;
-}
-
 static uint32_t feat_get(uint32_t id)
 {
     fw_param_t p;
@@ -193,7 +186,7 @@ static uint32_t param_value(int p)
     case P_ENABLE: return !st.enabled;
     case P_MASK:  return tm.mask & 0x7F;
     case P_NOTE8_OFF: return !(tm.mask & NOTE8_BIT);
-    case P_ROT:   return st.rot;
+    case P_VEL_HEAD: return tm.vel_head;
     default:      return 0;
     }
 }
@@ -210,7 +203,6 @@ static void param_apply(int p, int value)
         tm.len = v;
         tm_tile(&tm);
         st.pos = (uint8_t)(st.pos % v);
-        st.rot = (uint8_t)(st.rot % v);
         break;
     case P_RATE:  tm.div = v; break;
     case P_OCT:   tm.octave = v; break;
@@ -221,6 +213,7 @@ static void param_apply(int p, int value)
     case P_NOTE8_OFF: tm.mask = (uint8_t)((tm.mask & 0x7F) | (v ? 0 : NOTE8_BIT)); break;
     case P_CHAN:  midi_channel = v; break;
     case P_VEL:   tm.vel = v; break;
+    case P_VEL_HEAD: tm.vel_head = v; break;
     case P_ENABLE: st.enabled = v == 0; break;     /* tm_mode_poll releases a muted note */
     }
 }
@@ -420,31 +413,22 @@ static void show_param(int param)
         title = "Trig Heads";
         p = put_str(p, tm_heads[tm.heads].name);
         break;
-    case P_ROT:
-        title = "Rotate";
-        p = put_num(put_str(p, "Step "), st.rot + 1u);
+    case P_VEL_HEAD: {
+        uint32_t lo = (uint32_t)tm_vel_shift(&tm) + 1u;     /* "Bits 5-11" */
+        title = "Vel Head";
+        p = put_num(put_str(put_num(put_str(p, "Bits "), lo), "-"), lo + 6u);
         break;
+    }
     }
     *p = 0;
     popup(title, v);
 }
 
-/* Rotating the register while keeping pos moves the step MIDI Start rewinds to. */
-static void rotate(int delta)
-{
-    tm_rewind(&tm, wrap(-delta, tm.len));       /* CW = forward = rewind by len - 1 */
-    st.rot = (uint8_t)wrap(st.rot + delta, tm.len);
-}
-
 /* An encoder or button changes parameter p by delta steps. */
 static void param_change(int p, int delta)
 {
-    if (p == P_ROT) {
-        rotate(delta);          /* an action on the register, not a stored value */
-    } else {
-        param_apply(p, (int)param_value(p) + delta * params[p].step);
-        param_save(p);
-    }
+    param_apply(p, (int)param_value(p) + delta * params[p].step);
+    param_save(p);
     draw_all();
     show_param(p);
 }

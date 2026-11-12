@@ -35,6 +35,7 @@ void tm_init(tm_t *tm, uint32_t seed)
     tm->gate = 50;
     tm->heads = 0;          /* every step */
     tm->vel = 0;
+    tm->vel_head = 0;
 }
 
 int tm_step(tm_t *tm)
@@ -87,9 +88,14 @@ uint16_t tm_gate_ticks(const tm_t *tm)
     return (uint16_t)t;
 }
 
+int tm_vel_shift(const tm_t *tm)
+{
+    return (TM_VEL_SHIFT + tm->vel_head) % TM_VEL_HEADS;
+}
+
 int tm_velocity(const tm_t *tm)
 {
-    int window = 1 + (tm->reg >> TM_VEL_SHIFT & 0x7F) * 126 / 127;     /* 1..127 */
+    int window = 1 + (tm->reg >> tm_vel_shift(tm) & 0x7F) * 126 / 127;     /* 1..127 */
     int v = (TM_VEL_BASE * (TM_VEL_MAX - tm->vel) + window * tm->vel) / TM_VEL_MAX;
     return v < 1 ? 1 : v > 127 ? 127 : v;
 }

@@ -19,7 +19,8 @@
 #define TM_VEL_MAX     100   /* velocity depth in % */
 #define TM_VEL_STEP    5
 #define TM_VEL_BASE    100   /* velocity at depth 0 */
-#define TM_VEL_SHIFT   4     /* velocity window = register bits 4..10 (pitch uses bits 0..7) */
+#define TM_VEL_SHIFT   4     /* velocity window at head 0 = register bits 4..10 (pitch uses bits 0..7) */
+#define TM_VEL_HEADS   10    /* velocity head positions: window at bits 0..9 (16 - 7 + 1) */
 #define TM_NUM_HEADS   8     /* trigger modes, dense -> sparse (see tm_heads) */
 #define TM_PADS        8     /* lower pads = scale notes, upper pads = register bits */
 
@@ -34,6 +35,7 @@ typedef struct {
     uint8_t  gate;     /* gate length in % of a step, TM_GATE_MIN..TM_GATE_MAX */
     uint8_t  heads;    /* index into tm_heads (0 = every step) */
     uint8_t  vel;      /* velocity depth 0..TM_VEL_MAX % */
+    uint8_t  vel_head; /* velocity head 0..TM_VEL_HEADS - 1, see tm_vel_shift */
     uint32_t rng;      /* xorshift32 state, never 0 */
 } tm_t;
 
@@ -74,12 +76,17 @@ int tm_gate(const tm_t *tm);
 /* Gate length in clock ticks: gate % of the step, always 1..step-1 (no ties). */
 uint16_t tm_gate_ticks(const tm_t *tm);
 
-/* Note velocity 1..127: TM_VEL_BASE blended with the 7-bit register window at TM_VEL_SHIFT,
+/* Lowest register bit of the velocity window: (TM_VEL_SHIFT + vel_head) % TM_VEL_HEADS, so head 0
+ * reads bits 4..10 (settings saved before the head existed read 0) and every head gives another
+ * accent pattern from the same loop. */
+int tm_vel_shift(const tm_t *tm);
+
+/* Note velocity 1..127: TM_VEL_BASE blended with the 7-bit register window at tm_vel_shift,
  * vel % of the way (0 = always TM_VEL_BASE, 100 = window only). */
 int tm_velocity(const tm_t *tm);
 
 /* Copy the loop (bits 0..len-1) over the bits above it: bit k = bit k - len, the state a locked
- * loop keeps by itself. Pitch (bits 0..7) and velocity (4..10) read beyond short loops, so every
+ * loop keeps by itself. Pitch (bits 0..7) and velocity (up to bit 15) read beyond short loops, so every
  * edit tiles to be heard from the next step on instead of after the stale copies shifted out. */
 void tm_tile(tm_t *tm);
 
