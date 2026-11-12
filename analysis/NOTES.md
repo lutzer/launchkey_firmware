@@ -85,7 +85,8 @@
 - **Overview popup template 4:** field 0 title, fields 1..8 = 2 rows x 4 fields of 32 px (encoder labels).
 - **Layout names:** `layout_name_text_a` 0x0802AEB8 (mode popups, called at 0x08022548/A32/A58/E8C) and
   `layout_name_text_b` 0x0802AECA (home screen, 0x08024230) write a layout's name into a display field, handle
-  {index, type} in r2/r3. cfw hooks those calls so pad Custom 4 reads "Turing Machine".
+  {index, type} in r2/r3. cfw hooks those calls so pad Custom 4 reads "Turing Machine"; the pad-mode popup
+  (0x08022E8C, screen 1 field 1) draws the Turing Machine encoder overview instead (no stock popup flash).
 - **MIDI realtime handler** 0x08030958 (via 0x0803098E): F8 -> `clock_ext_tick`, FA -> `clock_midi_start`
   0x08013C12, FB -> `clock_midi_continue` 0x08013C24, FC -> `clock_midi_stop` 0x08013C1A, F2 accepted (no
   action here). cfw hooks the three transport calls (cfw_midi_*) -> Turing Machine Start = rewind to the first

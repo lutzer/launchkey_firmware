@@ -362,14 +362,19 @@ static void popup(const char *title, const char *value)
  * field 0 = title, fields 1..4 / 5..8 = encoders 1..4 / 5..8, 32 px each). */
 #define TEMPLATE_OVERVIEW 4
 
-static void popup_overview(void)
+void tm_overview_text(void)
 {
-    ui_popup_begin();
-    draw_buttons();
     disp_set_screen(1, TEMPLATE_OVERVIEW);
     disp_text(1, 0, "Turing Machine");
     for (uint32_t i = 0; i < ENC_COUNT; i++)
         disp_text(1, 1 + i, params[enc_param[i]].label);
+}
+
+static void popup_overview(void)
+{
+    ui_popup_begin();
+    draw_buttons();
+    tm_overview_text();
 }
 
 static void show_param(int param)

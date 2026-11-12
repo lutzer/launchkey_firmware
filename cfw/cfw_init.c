@@ -41,9 +41,13 @@ static int is_tm_layout(uint32_t index, uint32_t type)
     return (type & 0xFF) == LAYOUT_PADS && index == TM_PAD_MODE;
 }
 
+/* The pad-mode popup (0x08022E8C: screen 1, field 1) becomes the encoder overview right away, so the
+ * stock popup doesn't flash up before tm_mode_poll shows it. */
 void cfw_layout_name_a(uint32_t screen, uint32_t field, uint32_t index, uint32_t type)
 {
-    if (is_tm_layout(index, type))
+    if (is_tm_layout(index, type) && screen == 1 && field == 1)
+        tm_overview_text();
+    else if (is_tm_layout(index, type))
         disp_text(screen, field, "Turing Machine");
     else
         layout_name_text_a(screen, field, index, type);

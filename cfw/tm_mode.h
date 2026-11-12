@@ -40,5 +40,7 @@ int tm_playing(void);
 void tm_play_button(int start);
 /* after the Shift overlay drew its LEDs: colour the pad that selects the mode */
 void tm_shift_leds(void);
+/* mode popup content (title + encoder labels), without starting a popup */
+void tm_overview_text(void);
 
 #endif
