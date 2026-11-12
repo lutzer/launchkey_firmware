@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 350" width="1000" height="350" font-family="'IBM Plex Sans Condensed', 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif">
+<style>
+  .bg{fill:#ffffff} .fg{fill:#1c211d} .mu{fill:#5d665f} .ac{fill:#1f9d4c}
+  .s-fg{stroke:#1c211d} .s-ac{stroke:#1f9d4c} .s-line{stroke:#c9cfc7}
+  .on{fill:#1f9d4c;stroke:#1f9d4c} .st{fill:#d9a400;stroke:#d9a400}
+  .note{fill:#1c211d;stroke:#1c211d} .note-off{fill:none;stroke:#1c211d}
+  .ink-on{fill:#ffffff} .ink-note{fill:#ffffff}
+  .mono{font-family:'JetBrains Mono',Menlo,Consolas,monospace}
+  @media (prefers-color-scheme: dark){
+    .bg{fill:#0d1117} .fg{fill:#e3e8e2} .mu{fill:#98a29a} .ac{fill:#4fd27f}
+    .s-fg{stroke:#e3e8e2} .s-ac{stroke:#4fd27f} .s-line{stroke:#3a423c}
+    .on{fill:#4fd27f;stroke:#4fd27f} .st{fill:#f2cf3a;stroke:#f2cf3a}
+    .note{fill:#e3e8e2;stroke:#e3e8e2} .note-off{stroke:#e3e8e2}
+    .ink-on{fill:#101311} .ink-note{fill:#101311}
+  }
+</style>
+<rect class="bg" width="1000" height="350" rx="12"/>
+<g text-anchor="middle">
+<circle cx="332" cy="62" r="26" fill="none" class="s-fg" stroke-width="1.5"/>
+<text x="332" y="67" font-size="15" font-weight="600" class="ac mono">1</text>
+<text x="332" y="112" font-size="13.5" font-weight="600" class="fg">Prob</text>
+<text x="332" y="129" font-size="11" class="mu">locked ↔ random</text>
+<circle cx="408" cy="62" r="26" fill="none" class="s-fg" stroke-width="1.5"/>
+<text x="408" y="67" font-size="15" font-weight="600" class="ac mono">2</text>
+<text x="408" y="112" font-size="13.5" font-weight="600" class="fg">Len</text>
+<text x="408" y="129" font-size="11" class="mu">2–16</text>
+<circle cx="484" cy="62" r="26" fill="none" class="s-fg" stroke-width="1.5"/>
+<text x="484" y="67" font-size="15" font-weight="600" class="ac mono">3</text>
+<text x="484" y="112" font-size="13.5" font-weight="600" class="fg">Rate</text>
+<text x="484" y="129" font-size="11" class="mu">4/1–1/32</text>
+<circle cx="560" cy="62" r="26" fill="none" class="s-fg" stroke-width="1.5"/>
+<text x="560" y="67" font-size="15" font-weight="600" class="ac mono">4</text>
+<text x="560" y="112" font-size="13.5" font-weight="600" class="fg">Range</text>
+<text x="560" y="129" font-size="11" class="mu">+1–48 st</text>
+<circle cx="636" cy="62" r="26" fill="none" class="s-fg" stroke-width="1.5"/>
+<text x="636" y="67" font-size="15" font-weight="600" class="ac mono">5</text>
+<text x="636" y="112" font-size="13.5" font-weight="600" class="fg">Gate</text>
+<text x="636" y="129" font-size="11" class="mu">5–95 %</text>
+<circle cx="712" cy="62" r="26" fill="none" class="s-fg" stroke-width="1.5"/>
+<text x="712" y="67" font-size="15" font-weight="600" class="ac mono">6</text>
+<text x="712" y="112" font-size="13.5" font-weight="600" class="fg">Trig Heads</text>
+<text x="712" y="129" font-size="11" class="mu">Every…AND 3</text>
+<circle cx="788" cy="62" r="26" fill="none" class="s-fg" stroke-width="1.5"/>
+<text x="788" y="67" font-size="15" font-weight="600" class="ac mono">7</text>
+<text x="788" y="112" font-size="13.5" font-weight="600" class="fg">Vel Depth</text>
+<text x="788" y="129" font-size="11" class="mu">0–100 %</text>
+<circle cx="864" cy="62" r="26" fill="none" class="s-fg" stroke-width="1.5"/>
+<text x="864" y="67" font-size="15" font-weight="600" class="ac mono">8</text>
+<text x="864" y="112" font-size="13.5" font-weight="600" class="fg">Vel Head</text>
+<text x="864" y="129" font-size="11" class="mu">bits 1–16</text>
+</g>
+<text x="300" y="184" font-size="11" letter-spacing=".06em" class="mu">REGISTER BITS 1–8 · newest left · yellow = start step</text>
+<text x="300" y="338" font-size="11" letter-spacing=".06em" class="mu">SCALE NOTES · pad 1 = root · press toggles a note</text>
+<g text-anchor="middle">
+<rect x="300.75" y="196.75" width="62.5" height="50.5" rx="6" class="on" stroke-width="1.5"/>
+<text x="332" y="227" font-size="12" class="mono ink-on">1</text>
+<rect x="300.75" y="258.75" width="62.5" height="50.5" rx="6" class="note" stroke-width="1.5"/>
+<text x="332" y="289" font-size="12" class="mono ink-note">R</text>
+<rect x="376.75" y="196.75" width="62.5" height="50.5" rx="6" class="on" stroke-width="1.5" fill-opacity=".18"/>
+<text x="408" y="227" font-size="12" class="mono fg">2</text>
+<rect x="376.75" y="258.75" width="62.5" height="50.5" rx="6" class="note-off" stroke-width="1.5"/>
+<text x="408" y="289" font-size="12" class="mono fg">2</text>
+<rect x="452.75" y="196.75" width="62.5" height="50.5" rx="6" class="st" stroke-width="1.5"/>
+<text x="484" y="227" font-size="12" class="mono ink-on">3</text>
+<rect x="452.75" y="258.75" width="62.5" height="50.5" rx="6" class="note" stroke-width="1.5"/>
+<text x="484" y="289" font-size="12" class="mono ink-note">3</text>
+<rect x="528.75" y="196.75" width="62.5" height="50.5" rx="6" class="on" stroke-width="1.5"/>
+<text x="560" y="227" font-size="12" class="mono ink-on">4</text>
+<rect x="528.75" y="258.75" width="62.5" height="50.5" rx="6" class="note" stroke-width="1.5"/>
+<text x="560" y="289" font-size="12" class="mono ink-note">4</text>
+<rect x="604.75" y="196.75" width="62.5" height="50.5" rx="6" class="on" stroke-width="1.5" fill-opacity=".18"/>
+<text x="636" y="227" font-size="12" class="mono fg">5</text>
+<rect x="604.75" y="258.75" width="62.5" height="50.5" rx="6" class="note" stroke-width="1.5"/>
+<text x="636" y="289" font-size="12" class="mono ink-note">5</text>
+<rect x="680.75" y="196.75" width="62.5" height="50.5" rx="6" class="on" stroke-width="1.5" fill-opacity=".18"/>
+<text x="712" y="227" font-size="12" class="mono fg">6</text>
+<rect x="680.75" y="258.75" width="62.5" height="50.5" rx="6" class="note" stroke-width="1.5"/>
+<text x="712" y="289" font-size="12" class="mono ink-note">6</text>
+<rect x="756.75" y="196.75" width="62.5" height="50.5" rx="6" class="on" stroke-width="1.5"/>
+<text x="788" y="227" font-size="12" class="mono ink-on">7</text>
+<rect x="756.75" y="258.75" width="62.5" height="50.5" rx="6" class="note" stroke-width="1.5"/>
+<text x="788" y="289" font-size="12" class="mono ink-note">7</text>
+<rect x="832.75" y="196.75" width="62.5" height="50.5" rx="6" class="on" stroke-width="1.5" fill-opacity=".18"/>
+<text x="864" y="227" font-size="12" class="mono fg">8</text>
+<rect x="832.75" y="258.75" width="62.5" height="50.5" rx="6" fill="none" class="s-line" stroke-width="1.5" stroke-dasharray="4 4"/>
+<text x="864" y="289" font-size="12" class="mono mu">8</text>
+<rect x="40.75" y="196.75" width="148.5" height="50.5" rx="10" fill="none" class="s-fg" stroke-width="1.5"/>
+<text x="115.0" y="219" font-size="14" font-weight="600" class="fg">Shift</text>
+<text x="115.0" y="235" font-size="11" class="mu">+ bottom pad 8: select mode</text>
+<rect x="40.75" y="258.75" width="148.5" height="50.5" rx="10" fill="none" class="s-ac" stroke-width="1.5"/>
+<text x="115.0" y="281" font-size="14" font-weight="600" class="fg">Play</text>
+<text x="115.0" y="297" font-size="11" class="mu">start from yellow / stop</text>
+<rect x="224.75" y="196.75" width="54.5" height="50.5" rx="10" fill="none" class="s-fg" stroke-width="1.5"/>
+<text x="252.0" y="219" font-size="14" font-weight="600" class="fg">▲</text>
+<text x="252.0" y="235" font-size="9.5" class="mu">oct +</text>
+<rect x="224.75" y="258.75" width="54.5" height="50.5" rx="10" fill="none" class="s-fg" stroke-width="1.5"/>
+<text x="252.0" y="281" font-size="14" font-weight="600" class="fg">▼</text>
+<text x="252.0" y="297" font-size="9.5" class="mu">oct −</text>
+<rect x="916.75" y="196.75" width="54.5" height="50.5" rx="10" fill="none" class="s-ac" stroke-width="1.5"/>
+<text x="944.0" y="219" font-size="14" font-weight="600" class="fg">&gt;</text>
+<text x="944.0" y="235" font-size="9.5" class="mu">on / mute</text>
+<rect x="916.75" y="258.75" width="54.5" height="50.5" rx="10" fill="none" class="s-fg" stroke-width="1.5"/>
+<text x="944.0" y="281" font-size="14" font-weight="600" class="fg">Func</text>
+<text x="944.0" y="297" font-size="9.5" class="mu">hold: flip</text>
+</g></svg>

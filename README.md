@@ -26,6 +26,8 @@ press **Play** to start it.
 A 16-bit shift register loops and, depending on the probability, flips the bit that comes round again. Its
 value picks a note from the current scale, and trigger heads decide whether a step plays a note.
 
+![Turing Machine controls: encoders 1–8, register and scale-note pads, Shift, Play, octave arrows, > and Function](assets/turing_controls.svg)
+
 ### Pads and buttons
 
 | Control | Function |
@@ -55,12 +57,12 @@ Turning an encoder shows its value on the display.
 ### Good to know
 
 - **Tempo** follows the device: the internal tempo, or external MIDI clock when connected.
-- **MIDI transport:** Start goes back to the first step of the loop (set with encoder 7) and plays it on the
+- **MIDI transport:** Start goes back to the first step of the loop (the yellow pad) and plays it on the
   next clock tick (the downbeat), Continue resumes, Stop pauses – also while another pad mode is selected or the sequencer is disabled.
   The **Play** button does the same as Start / Stop.
 - **Running in the background:** once started, the sequencer keeps playing after you switch to
   another pad mode; its pads, buttons and popups only show while Turing Machine mode is selected.
-- **Notes** go out on the **Turing Channel** via USB MIDI and the TRS MIDI out (velocity: see encoder 8). Set it in
+- **Notes** go out on the **Turing Channel** via USB MIDI and the TRS MIDI out (velocity: see encoders 7 and 8). Set it in
   **Settings**: it is the last item, after "Power On Modes" – use the down arrow to get there (default 1).
 - **All parameters and the scale-note selection are saved** and restored at power-on (about 3 seconds after
   the last change). The running pattern and start/stop are not saved;
