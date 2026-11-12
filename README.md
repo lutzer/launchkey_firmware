@@ -46,7 +46,7 @@ value picks a note from the current scale, and trigger heads decide whether a st
 | 2 | Length | 2–16 steps |
 | 3 | Rate (turn right = faster) | 4/1, 2/1, 1/1, 1/2, 1/4, 1/4T, 1/8, 1/8T, 1/16, 1/16T, 1/32 |
 | 4 | Range | +1 … +48 semitones above the root (+12 = one octave, +24 = two, +36 = three, +48 = four); the register picks a pitch in that span and it is moved to the closest enabled scale note (staying inside the span when possible) |
-| 5 | Gate length | 5–95 % of a step (notes are never tied) |
+| 5 | Gate length | 5–95 % of a step, then **Tie**: notes last 95 %, but a note followed directly by another one is held into it – the same pitch keeps sounding as one long note, a different pitch is played legato (new note on before the old one is released) – until a step without a note |
 | 6 | Trigger heads (turn right = sparser) | **Every** step · **OR 3** (~88 %) · **OR 2** (~75 %) · **Bit 1** (~50 %, like the module) · **XOR** (~50 %, different rhythm) · **AND 2** (~25 %) · **AND 2+** (~19 %) · **AND 3** (~12 %). The heads sit at fixed fractions of the loop (start, ½, ⅓ and ⅔, ¼ and ¾) and combine what they read, so the rhythm loops and mutates with the pattern at any length. |
 | 7 | Velocity depth | Fixed (velocity 100) … 100 % in 5 % steps: blends in a velocity read from a 7-bit window of the register (see encoder 8), so accents loop and change with the pattern |
 | 8 | Velocity head | Moves the window the velocity is read from (shown as "Bits 5-11" … "Bits 10-16", then "Bits 1-7" … "Bits 4-10"): each position gives a different accent pattern from the same loop. Only audible with velocity depth above 0. |

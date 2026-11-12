@@ -16,6 +16,7 @@
 #define TM_GATE_MIN    5     /* gate length in % of a step; never reaches the next step */
 #define TM_GATE_MAX    95
 #define TM_GATE_STEP   5
+#define TM_GATE_TIE    100   /* gate setting after TM_GATE_MAX: TM_GATE_MAX, tied into a following note */
 #define TM_VEL_MAX     100   /* velocity depth in % */
 #define TM_VEL_STEP    5
 #define TM_VEL_BASE    100   /* velocity at depth 0 */
@@ -32,7 +33,7 @@ typedef struct {
     uint8_t  octave;   /* base octave 0..TM_OCT_MAX */
     uint8_t  range;    /* TM_RANGE_MIN..TM_RANGE_MAX */
     uint8_t  mask;     /* bit n = n-th scale note enabled (pad n + 1) */
-    uint8_t  gate;     /* gate length in % of a step, TM_GATE_MIN..TM_GATE_MAX */
+    uint8_t  gate;     /* gate length in % of a step, TM_GATE_MIN..TM_GATE_MAX, or TM_GATE_TIE */
     uint8_t  heads;    /* index into tm_heads (0 = every step) */
     uint8_t  vel;      /* velocity depth 0..TM_VEL_MAX % */
     uint8_t  vel_head; /* velocity head 0..TM_VEL_HEADS - 1, see tm_vel_shift */
@@ -73,8 +74,12 @@ int tm_step(tm_t *tm);
 /* 1 if the current step plays a note (trigger mode tm->heads). */
 int tm_gate(const tm_t *tm);
 
-/* Gate length in clock ticks: gate % of the step, always 1..step-1 (no ties). */
+/* Gate length in clock ticks: gate % of the step (TM_GATE_TIE: TM_GATE_MAX %), always 1..step-1. */
 uint16_t tm_gate_ticks(const tm_t *tm);
+
+/* 1 if the next step will play a note: tm_gate after a tm_step on a copy (same random state, so it
+ * matches the real step unless something is edited in between). */
+int tm_next_gate(const tm_t *tm);
 
 /* Lowest register bit of the velocity window: (TM_VEL_SHIFT + vel_head) % TM_VEL_HEADS, so head 0
  * reads bits 4..10 (settings saved before the head existed read 0) and every head gives another

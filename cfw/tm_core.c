@@ -80,12 +80,19 @@ int tm_gate(const tm_t *tm)
 uint16_t tm_gate_ticks(const tm_t *tm)
 {
     uint32_t step = tm_div_ticks[tm->div];
-    uint32_t t = step * tm->gate / 100;
+    uint32_t t = step * (tm->gate == TM_GATE_TIE ? TM_GATE_MAX : tm->gate) / 100;
     if (t < 1)
         t = 1;
     if (t > step - 1)
         t = step - 1;
     return (uint16_t)t;
+}
+
+int tm_next_gate(const tm_t *tm)
+{
+    tm_t next = *tm;
+    tm_step(&next);
+    return tm_gate(&next);
 }
 
 int tm_vel_shift(const tm_t *tm)

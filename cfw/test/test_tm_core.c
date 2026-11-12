@@ -344,8 +344,25 @@ static void test_gate(void)
     tm.div = TM_NUM_DIVS - 1;                       /* 1/32 = 3 ticks */
     tm.gate = 5;  CHECK(tm_gate_ticks(&tm) == 1, "1/32 + 5%%");
     tm.gate = 95; CHECK(tm_gate_ticks(&tm) == 2, "1/32 + 95%%");
+    tm.gate = TM_GATE_TIE; CHECK(tm_gate_ticks(&tm) == 2, "1/32 + Tie = 95%%");
     tm.div = TM_DIV_DEFAULT; tm.gate = 50;
     CHECK(tm_gate_ticks(&tm) == 3, "1/16 + 50%% = 3 ticks");
+    tm.gate = TM_GATE_TIE; CHECK(tm_gate_ticks(&tm) == 5, "1/16 + Tie = 5 ticks (95%%)");
+}
+
+static void test_next_gate(void)
+{
+    tm_t tm;
+    tm_init(&tm, 1234);
+    tm.len = 16; tm.prob = 64;
+    for (int h = 0; h < TM_NUM_HEADS; h++) {
+        tm.heads = (uint8_t)h;
+        for (int i = 0; i < 2000; i++) {
+            int predicted = tm_next_gate(&tm);
+            tm_step(&tm);
+            CHECK(predicted == tm_gate(&tm), "next gate must predict the step (heads %d, step %d)", h, i);
+        }
+    }
 }
 
 int main(void)
@@ -357,6 +374,7 @@ int main(void)
     test_rewind();
     test_velocity();
     test_gate();
+    test_next_gate();
     test_heads();
     test_locked();
     test_inverted();

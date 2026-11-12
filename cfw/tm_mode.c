@@ -25,7 +25,8 @@
  * Parameters and the note mask are saved as persistent feature params (see PARAM_*).
  * A step plays a note depending on the trigger mode (tm_heads: every step, OR / AND / XOR of
  * delayed register bits, ~88 % .. ~12 % dense); every note lasts the gate length and
- * is released before the next step (no ties).
+ * is released before the next step. Gate Tie (after 95 %): 95 %, but a note followed by another
+ * one is held into it (same pitch: one long note, else legato: new note on, then old note off).
  * Steps on the 24 PPQN clock counter (g_clock_ticks), notes go out on the MIDI port, which the
  * stock firmware chains to the DIN/TRS output (port link +0x18, set in main).
  * The input dispatchers in cfw_init.c ask tm_io_event / tm_enc_event whether an event
@@ -91,7 +92,7 @@ static const param_def_t params[P_COUNT] = {
     [P_LEN]       = {0x51, TM_LEN_MIN, TM_LEN_MAX, 1, 0, "Len"},
     [P_RATE]      = {0x52, 0, TM_NUM_DIVS - 1, 1, 0, "Rate"},
     [P_RANGE]     = {0x5B, TM_RANGE_MIN, TM_RANGE_MAX, 1, 0, "Rng"},
-    [P_GATE]      = {0x5D, TM_GATE_MIN, TM_GATE_MAX, TM_GATE_STEP, 0, "Gate"},
+    [P_GATE]      = {0x5D, TM_GATE_MIN, TM_GATE_TIE, TM_GATE_STEP, 0, "Gate"},
     [P_HEADS]     = {0x5E, 0, TM_NUM_HEADS - 1, 1, 0, "Head"},
     [P_OCT]       = {0x5A, 0, TM_OCT_MAX, 1, 0, 0},
     [P_MASK]      = {0x5F, 0, 0x7F, 1, 0, 0},
@@ -253,10 +254,15 @@ static const uint8_t *scale_semis(void)
 
 /* ---- output ---- */
 
+static void send_note_off(uint32_t channel, int note)
+{
+    if (note >= 0 && g_app_ports[MIDI_PORT])
+        midi_send3(g_app_ports[MIDI_PORT], 0x80 | channel, (uint32_t)note, 0);
+}
+
 static void note_off(void)
 {
-    if (st.note >= 0 && g_app_ports[MIDI_PORT])
-        midi_send3(g_app_ports[MIDI_PORT], 0x80 | st.channel, (uint32_t)st.note, 0);
+    send_note_off(st.channel, st.note);
     st.note = -1;
 }
 
@@ -407,7 +413,7 @@ static void show_param(int param)
         break;
     case P_GATE:
         title = "Gate";
-        p = put_str(put_num(p, tm.gate), "%");
+        p = tm.gate == TM_GATE_TIE ? put_str(p, "Tie") : put_str(put_num(p, tm.gate), "%");
         break;
     case P_VEL:
         title = "Velocity";
@@ -442,13 +448,22 @@ static void param_change(int p, int delta)
 
 /* ---- sequencing ---- */
 
+/* A note still sounding here was tied over (Gate Tie): the same pitch keeps sounding, another one
+ * starts before the held one stops (legato). */
 static void step(void)
 {
-    note_off();
+    int held = st.note;
+    uint32_t held_channel = st.channel;
     tm_step(&tm);
     st.pos = (uint8_t)((st.pos + 1) % tm.len);
+    int note = -1;
     if (tm_gate(&tm))
-        note_on(tm_note(&tm, (int)feat_get(FEAT_SCALE_ROOT) % 12, scale_semis(), feat_get(FEAT_SCALE_ON) != 0));
+        note = tm_note(&tm, (int)feat_get(FEAT_SCALE_ROOT) % 12, scale_semis(), feat_get(FEAT_SCALE_ON) != 0);
+    if (held < 0 || note != held || !st.enabled || midi_channel != held_channel) {
+        st.note = -1;
+        note_on(note);
+        send_note_off(held_channel, held);
+    }
     draw_register();
 }
 
@@ -465,7 +480,8 @@ static void advance_clock(void)
             st.ticks = 0;
             step();
         } else if (st.ticks == tm_gate_ticks(&tm)) {
-            note_off();         /* always before the next step: no ties */
+            if (tm.gate != TM_GATE_TIE || !tm_next_gate(&tm))
+                note_off();     /* before the next step, unless tied into it */
         }
     }
 }

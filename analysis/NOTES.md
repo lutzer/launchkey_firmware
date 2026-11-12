@@ -184,7 +184,10 @@
   CW = faster), range, gate, trigger heads, velocity depth, velocity head; octave on the up/down arrows. Trigger modes (tm_heads, dense -> sparse): Every, OR(0,1/3,2/3), OR(0,1/2), 0,
   XOR(0,1/2), AND(0,1/2), AND(0,1/2)&OR(1/4,3/4), AND(0,1/3,2/3); a head at fraction f reads bit f*len (min 1
   after the first), i.e. bit 0 delayed - fixed bits collapsed on short loops (len 3: bit 3 = bit 0). The note lasts gate % of
-  the step (5..95 %) and is always released before the next step (no ties). Encoder 7 = velocity depth: velocity = 100 blended with a 7-bit register window (tm_velocity). Encoder 8 =
+  the step (5..95 %) and is released before the next step. Gate value 100 = **Tie** (`TM_GATE_TIE`, one encoder
+  step after 95): 95 %, but at the gate tick `tm_next_gate` (tm_step + tm_gate on a copy, same RNG state)
+  keeps the note when the next step triggers; `step()` then keeps a same-pitch note or sends new note on before
+  the old note off (legato). An edit in between that cancels the trigger releases at the step boundary. Encoder 7 = velocity depth: velocity = 100 blended with a 7-bit register window (tm_velocity). Encoder 8 =
   velocity head 0..9 moves that window: lowest bit `tm_vel_shift` = (4 + head) % 10, so head 0 = bits 4..10 (the
   window before the head existed; old records read 0). Encoder 7 was Rotate until 2026-11-12 (removed).
 - Parameters are table-driven (`params[]` in tm_mode.c: feature id, range, step, per-tick vs per-detent, popup
