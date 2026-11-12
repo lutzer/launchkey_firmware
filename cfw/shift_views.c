@@ -1,9 +1,9 @@
-/* Shift + Scale / Shift + Arp open the settings screens without switching anything.
+/* Shift + Scale / Shift + Arp open the settings screens without switching anything off.
  *
  * Stock: Shift + Scale (control 0x42) acts like Scale (tap toggles the scale, hold shows its screen),
- * Shift + Arp (0x60) toggles the arp latch. Here both open their screen (press again: close). Shift + Scale
- * switches the scale on (like stock) but never off; Shift + Arp leaves arp on/off and latch alone. On the Arp screen the encoder arrows set the latch
- * (up = on, down = off) and the arrow of the current setting is lit.
+ * Shift + Arp (0x60) toggles the arp latch. Here both open their screen (press again: close) and switch
+ * the scale / arp on, but never off; Shift + Arp leaves the latch alone. On the Arp screen the encoder
+ * arrows set the latch (up = on, down = off) and the arrow of the current setting is lit.
  *
  * Hooks (cfw/hooks.txt): the scale and arp press handlers in the central press dispatcher
  * (0x080163E0) and the entry of the arp LED refresh (0x08023778). */
@@ -74,12 +74,10 @@ void cfw_arp_press(uint32_t id)
         g_arp_view.pending_off = 0;
         if (g_arp_view.shown) {
             arp_view_close();
-        } else {                    /* arp_view_open (0x0802386C) without enabling the arp */
-            ui_close_views();
-            g_arp_view.shown = 1;
-            ui_view_changed();
+            ui_popup_begin();
+        } else {
+            arp_view_open();        /* switches the arp on, like Shift + Scale does for the scale */
         }
-        ui_popup_begin();
         return;
     }
     if ((id == CTL_ENC_UP || id == CTL_ENC_DOWN) && g_arp_view.shown) {

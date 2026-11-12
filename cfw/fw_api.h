@@ -162,6 +162,7 @@ typedef struct {
 extern volatile arp_view_t g_arp_view;
 void arp_press(uint32_t id);
 void arp_view_close(void);
+void arp_view_open(void);       /* arp on + view shown (stock open path, incl. ui_popup_begin) */
 void arp_led_set(uint32_t id, uint32_t rgb);     /* only if the arp view owns the control */
 void arp_popup_title(uint32_t key, uint32_t str_id);
 

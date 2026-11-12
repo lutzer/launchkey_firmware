@@ -167,8 +167,8 @@
   `ui_popup_begin` (activate callbacks re-capture controls and redraw LEDs). Close: `*_view_close` + popup_begin.
 - cfw (`cfw/shift_views.c`): hooks the scale/arp press calls in the dispatcher and the entry of `arp_leds`.
   0x42 opens the view via `scale_view_open` (scale on; with the scale off notes stay chromatic whatever the type,
-  so opening without enabling looked like "type has no effect"), never switches it off; 0x60 opens the view
-  without touching arp on/off or latch (press again: close);
+  so opening without enabling looked like "type has no effect"), never switches it off; 0x60 likewise opens the view via
+  `arp_view_open` (arp on, never off, latch untouched; press again: close);
   in the Arp view up/down set the latch with the stock popup, and the arrow of the current setting is lit.
 - Chord Map performance-modifier view = menu 7 (state 0x200010AC): pads 5-7 / 13-15 pick Arp Up/Down,
   Inversion Up/Down, Bass + Chord, Chord Split; control 0x10 toggles their latch ("Latch ON/OFF").

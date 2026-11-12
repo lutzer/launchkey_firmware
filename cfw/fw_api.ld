@@ -82,6 +82,7 @@ PROVIDE(scale_view_open     = 0x08021634 | 1);
 PROVIDE(g_scale_view        = 0x2000F488);
 PROVIDE(arp_press           = 0x080238CE | 1);
 PROVIDE(arp_view_close      = 0x0802388C | 1);
+PROVIDE(arp_view_open       = 0x0802386C | 1);
 PROVIDE(arp_led_set         = 0x0802374C | 1);
 PROVIDE(arp_popup_title     = 0x080236C0 | 1);
 PROVIDE(g_arp_view          = 0x20001094);

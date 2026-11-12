@@ -7,8 +7,8 @@ firmware version 1.3 build 1563. It adds:
   Custom 4
 - **Scale memory** – the scale (on/off, type, root note, mode) is restored at power-on
 - **Settings screens without switching off** – Shift + Scale / Shift + Arp open the Scale / Arp settings
-  (press again to close). Shift + Scale switches the scale on (its settings only apply while it is on) but
-  never off; Shift + Arp leaves Arp and Latch as they are. On the Arp screen the encoder arrows set
+  (press again to close). They switch the scale / arp on (the settings only apply while it is on) but
+  never off; Shift + Arp leaves Latch as it is. On the Arp screen the encoder arrows set
   Latch: **up = on, down = off**, and the arrow of the current setting is lit
 
 > ⚠️ **Use at your own risk.** Flashing modified firmware can leave the device unusable and may void your
