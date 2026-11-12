@@ -69,7 +69,7 @@ PROVIDE(relin_io_listener_a = 0x08020E97);
 PROVIDE(relin_io_listener_c = 0x08020EBB);
 PROVIDE(relin_io_listener_d = 0x08020EDB);
 
-/* UI views (menus): ownership, close/refresh broadcasts, Scale and Arp screens (cfw/shift_views.c) */
+/* UI views (menus): ownership, close/refresh broadcasts, Scale and Arp screens (cfw/arp_view.c) */
 PROVIDE(ui_menu_owns        = 0x080257A6 | 1);
 PROVIDE(ui_close_views      = 0x08024EF6 | 1);
 PROVIDE(ui_view_changed     = 0x0801874E | 1);

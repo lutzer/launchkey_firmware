@@ -165,11 +165,15 @@
   feature listener.
 - View open (stock pattern): `ui_close_views` (all close callbacks), shown = 1, `ui_view_changed`,
   `ui_popup_begin` (activate callbacks re-capture controls and redraw LEDs). Close: `*_view_close` + popup_begin.
-- cfw (`cfw/shift_views.c`): hooks the scale/arp press calls in the dispatcher and the entry of `arp_leds`.
-  0x42 opens the view via `scale_view_open` (scale on; with the scale off notes stay chromatic whatever the type,
-  so opening without enabling looked like "type has no effect"), never switches it off; 0x60 likewise opens the view via
-  `arp_view_open` (arp on, never off, latch untouched; press again: close);
-  in the Arp view up/down set the latch with the stock popup, and the arrow of the current setting is lit.
+- A cfw override of Shift + Scale / Shift + Arp (open the screen without switching off, arrows set the latch;
+  `cfw/shift_views.c`, hooks at 0x0801640E, 0x08016444, 0x08023778) was removed again: the stock handlers
+  run unchanged. Restore it from git history if needed.
+- cfw (`cfw/arp_view.c`): hooks the arp press call in the dispatcher and the entry of `arp_leds`. In the Arp
+  view up/down set the latch with the stock popup, and the arrow of the current setting is lit. Stock 0x1E
+  press with the arp on sets pending_off; only the hold timer (+0xC, view not shown) or the layout timer (+0x10,
+  pad layout != 0xD) clear it on expiry. With the view shown and the pads on layout 0xD neither runs, so a long
+  press switched the arp off on release. cfw sets the hold timer whenever pending_off is set and it is 0
+  (expiry: pending_off = 0 + `arp_view_open`, which simply re-shows the view).
 - Chord Map performance-modifier view = menu 7 (state 0x200010AC): pads 5-7 / 13-15 pick Arp Up/Down,
   Inversion Up/Down, Bass + Chord, Chord Split; control 0x10 toggles their latch ("Latch ON/OFF").
 

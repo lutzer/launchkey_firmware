@@ -6,10 +6,10 @@ firmware version 1.3 build 1563. It adds:
 - **Turing Machine mode** – a generative sequencer inspired by the Music Thing Turing Machine, on pad mode
   Custom 4
 - **Scale memory** – the scale (on/off, type, root note, mode) is restored at power-on
-- **Settings screens without switching off** – Shift + Scale / Shift + Arp open the Scale / Arp settings
-  (press again to close). They switch the scale / arp on (the settings only apply while it is on) but
-  never off; Shift + Arp leaves Latch as it is. On the Arp screen the encoder arrows set
-  Latch: **up = on, down = off**, and the arrow of the current setting is lit
+- **Arp latch on the arrows** – while the Arp screen is open, the up / down arrows next to the encoders set
+  Latch: **up = on, down = off**; the arrow of the current setting is lit (Shift + Arp still toggles Latch)
+- **Holding Arp keeps the arp on** – with the arp on, holding Arp only opens the Arp screen; a short tap
+  still switches the arp off
 
 > ⚠️ **Use at your own risk.** Flashing modified firmware can leave the device unusable and may void your
 > warranty. Read [Safety & recovery](#safety--recovery) before your first upload.

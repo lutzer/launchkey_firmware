@@ -1,19 +1,21 @@
-/* Shift + Scale / Shift + Arp open the settings screens without switching anything off.
+/* Arp screen additions; Shift + Arp and Shift + Scale stay stock.
  *
- * Stock: Shift + Scale (control 0x42) acts like Scale (tap toggles the scale, hold shows its screen),
- * Shift + Arp (0x60) toggles the arp latch. Here both open their screen (press again: close) and switch
- * the scale / arp on, but never off; Shift + Arp leaves the latch alone. On the Arp screen the encoder
- * arrows set the latch (up = on, down = off) and the arrow of the current setting is lit.
+ * - On the Arp screen the encoder arrows set the latch (up = on, down = off) and the arrow of the current
+ *   setting is lit.
+ * - A long press of Arp never switches the arp off. Stock only cancels the pending switch-off when one of its
+ *   hold timers expires; with the screen already shown and the pads already on the arp pattern layout
+ *   neither timer runs, so the release switched the arp off. Here the hold timer always runs (its expiry
+ *   clears pending_off and shows the screen).
  *
- * Hooks (cfw/hooks.txt): the scale and arp press handlers in the central press dispatcher
- * (0x080163E0) and the entry of the arp LED refresh (0x08023778). */
+ * Hooks (cfw/hooks.txt): the arp press handler in the central press dispatcher (0x080163E0) and the entry
+ * of the arp LED refresh (0x08023778). */
 #include <stdint.h>
 #include "fw_api.h"
 
-#define CTL_SHIFT_SCALE  0x42
-#define CTL_SHIFT_ARP    0x60
+#define CTL_ARP          0x1E
 #define CTL_ENC_UP       0x25
 #define CTL_ENC_DOWN     0x24
+#define HOLD_MS          0x14D       /* stock hold time */
 
 #define FEAT_ARP_LATCH   0x58
 #define STR_OFF          0x5D
@@ -23,22 +25,6 @@
 #define WHITE            0xFFFFFF
 
 const char *cfw_str_get(uint32_t id);   /* settings.c (str_get hook) */
-
-void cfw_scale_press(uint32_t id)
-{
-    if (id != CTL_SHIFT_SCALE || !ui_menu_owns(id, UI_MENU_SCALE)) {
-        scale_press(id);
-        return;
-    }
-    g_scale_view.hold_timer = 0;
-    g_scale_view.pending_off = 0;
-    if (g_scale_view.shown) {
-        scale_view_close();
-        ui_popup_begin();
-    } else {
-        scale_view_open();          /* switches the scale on: its settings only apply while it is on */
-    }
-}
 
 /* Stock arp LED refresh: its first two instructions, then the rest of the original. */
 __attribute__((naked)) static void arp_leds_stock(void)
@@ -69,17 +55,6 @@ void cfw_arp_press(uint32_t id)
         arp_press(id);
         return;
     }
-    if (id == CTL_SHIFT_ARP) {
-        g_arp_view.hold_timer = 0;
-        g_arp_view.pending_off = 0;
-        if (g_arp_view.shown) {
-            arp_view_close();
-            ui_popup_begin();
-        } else {
-            arp_view_open();        /* switches the arp on, like Shift + Scale does for the scale */
-        }
-        return;
-    }
     if ((id == CTL_ENC_UP || id == CTL_ENC_DOWN) && g_arp_view.shown) {
         int on = id == CTL_ENC_UP;  /* same popup as the stock Shift + Arp latch toggle */
         feat_set_value_volatile(FEAT_ARP_LATCH, on ? 0x7F : 0);
@@ -89,4 +64,6 @@ void cfw_arp_press(uint32_t id)
         return;
     }
     arp_press(id);
+    if (id == CTL_ARP && g_arp_view.pending_off && !g_arp_view.hold_timer)
+        g_arp_view.hold_timer = HOLD_MS;
 }
