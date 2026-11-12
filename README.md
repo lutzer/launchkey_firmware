@@ -10,7 +10,6 @@ firmware version 1.3 build 1563. It adds:
   (press again to close). Shift + Scale switches the scale on (its settings only apply while it is on) but
   never off; Shift + Arp leaves Arp and Latch as they are. On the Arp screen the encoder arrows set
   Latch: **up = on, down = off**, and the arrow of the current setting is lit
-- A **CFW badge** on the boot logo, and the version shown at boot gets a `+cfw` suffix
 
 > ⚠️ **Use at your own risk.** Flashing modified firmware can leave the device unusable and may void your
 > warranty. Read [Safety & recovery](#safety--recovery) before your first upload.
