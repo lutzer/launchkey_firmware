@@ -134,6 +134,11 @@ int tm_start_bit(const tm_t *tm, int pos)
     return ((tm->len - 1 + pos) % tm->len + tm->len) % tm->len;
 }
 
+int tm_loop_bit(const tm_t *tm, int pos, int k)
+{
+    return ((tm_start_bit(tm, pos) - k) % tm->len + tm->len) % tm->len;
+}
+
 int tm_scale_size(const uint8_t semis[12])
 {
     int n = 0;

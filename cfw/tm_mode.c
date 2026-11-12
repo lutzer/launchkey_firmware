@@ -3,11 +3,13 @@
  * Active while feature param 0x1D (pad mode) = 8 and Shift is up:
  *   top pads 0..7      register bits (newest at pad 1), green, the loop's first step yellow; dark
  *                      beyond the loop length.
- *                      While Function is held both rows show bits 1..16 and a press flips the bit.
+ *                      While Function is held both rows show the loop in play order, its first
+ *                      step (yellow) on pad 1, the playhead mint (amber on the first step),
+ *                      and a press flips that step's bit.
  *   bottom pads 8..15  scale notes (pad 9 = root, ...), white; press toggles (Scale on only);
  *                      pads beyond the scale size are dark, all eight lit with Scale off
- *   Function (17)      hold: while held the top row is frozen on screen (the register keeps
- *                      running) and top-pad presses flip the bit they showed
+ *   Function (17)      hold: while held the pads show the loop anchored at its first step (live,
+ *                      so a locked loop stands still) and pad presses flip the step they show
  *   > (16)             enable/disable (above Function, saved): disabled mutes the notes; the
  *                      sequencer keeps following clock, transport and Play (pads keep moving)
  *   Play (0x48)        start from the first step / stop, in every mode (cfw_play_press); the
@@ -61,6 +63,10 @@
 #define GREEN_DARK        0x000C00    /* Shift overlay: the mode pad while disabled */
 #define YELLOW_ON         0xFFFF00    /* the first step played after a rewind (Start / Play reset) */
 #define YELLOW_DIM        0x181800
+#define MINT_ON           0x00FF80    /* Function view: the playhead (step in bit 0, just played) */
+#define MINT_DIM          0x00180C
+#define AMBER_ON          0xFF8000    /* Function view: the playhead on the first step */
+#define AMBER_DIM         0x180C00
 #define WHITE_ON          0xFFFFFF
 #define WHITE_DIM         0x181818
 #define LED_OFF           0x000000
@@ -111,14 +117,12 @@ static struct {
     uint16_t menu_pads;      /* pads currently captured by a menu (not drawn) */
     uint32_t last_clock;
     uint32_t owned;          /* controls whose current press belongs to this mode (slot bits) */
-    uint8_t hold;            /* Function down: top row frozen, bits can be flipped */
+    uint8_t hold;            /* Function down: loop shown from its first step, bits can be flipped */
     uint8_t playing;         /* transport: Play button / MIDI Start..Stop, in every pad mode */
     uint8_t enabled;         /* ">": notes out; disabled = muted, everything else keeps running */
     uint8_t priority;        /* set by (re)selecting pad Custom 4: our controls win over a menu
                               * (Scale/Arp screens keep them captured); cleared by any other
                               * button press, i.e. whenever a menu may be opened */
-    uint16_t frozen_reg;     /* register as shown while frozen */
-    uint16_t frozen_steps;   /* steps since freezing */
     uint8_t pos;             /* steps since the loop start, mod length (for rewinding) */
     uint8_t popup_pending;   /* show the mode popup from the main loop, after the stock one */
 } st;
@@ -280,15 +284,17 @@ static void draw_register(void)
 {
     if (st.shift)
         return;
-    uint16_t reg = st.hold ? st.frozen_reg : tm.reg;
-    uint32_t pads = st.hold ? PAD_COUNT : PAD_ROW;  /* held: bits 9..16 on the bottom row */
-    /* the frozen view is frozen_steps behind the register */
-    uint32_t start = (uint32_t)tm_start_bit(&tm, st.pos - (st.hold ? st.frozen_steps % tm.len : 0));
+    uint32_t pads = st.hold ? PAD_COUNT : PAD_ROW;  /* held: steps 9..16 on the bottom row */
+    /* held: pad i = step i of the loop, so the first step is always pad 1 */
+    uint32_t start = st.hold ? 0 : (uint32_t)tm_start_bit(&tm, st.pos);
     for (uint32_t i = 0; i < pads; i++) {
-        int bit = reg >> i & 1;
+        int b = st.hold && i < tm.len ? tm_loop_bit(&tm, st.pos, (int)i) : (int)i;
+        int bit = tm.reg >> b & 1;
         uint32_t rgb;
         if (i >= tm.len)
             rgb = LED_OFF;
+        else if (st.hold && b == 0)     /* bit 0 = the step playing now */
+            rgb = i == start ? (bit ? AMBER_ON : AMBER_DIM) : (bit ? MINT_ON : MINT_DIM);
         else if (i == start)
             rgb = bit ? YELLOW_ON : YELLOW_DIM;
         else
@@ -439,7 +445,6 @@ static void step(void)
 {
     note_off();
     tm_step(&tm);
-    st.frozen_steps++;
     st.pos = (uint8_t)((st.pos + 1) % tm.len);
     if (tm_gate(&tm))
         note_on(tm_note(&tm, (int)feat_get(FEAT_SCALE_ROOT) % 12, scale_semis(), feat_get(FEAT_SCALE_ON) != 0));
@@ -581,10 +586,7 @@ static void pad_pressed(uint32_t id)
     if (st.hold) {                              /* flips need Function held */
         if ((int)id >= tm.len)
             return;
-        /* the bit shown has moved on by the steps since freezing */
-        int pos = ((int)id + st.frozen_steps) % tm.len;
-        st.frozen_reg ^= (uint16_t)(1u << id);
-        if (tm_flip(&tm, pos))
+        if (tm_flip(&tm, tm_loop_bit(&tm, st.pos, (int)id)))
             draw_register();
         return;
     }
@@ -611,8 +613,6 @@ static void button_pressed(uint32_t id)
         break;
     case BTN_HOLD:
         st.hold = 1;
-        st.frozen_reg = tm.reg;
-        st.frozen_steps = 0;
         draw_register();
         draw_buttons();
         break;

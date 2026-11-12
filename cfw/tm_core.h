@@ -101,6 +101,10 @@ void tm_rewind(tm_t *tm, int n);
  * loop start): the rewind puts it back at bit len - 1, the next tm_step shifts it into bit 0. */
 int tm_start_bit(const tm_t *tm, int pos);
 
+/* Register bit holding step k (0 = the first) of the loop played after tm_rewind(tm, pos):
+ * the bits play from bit len - 1 down, so step k sits k bits below the start bit (wrapping). */
+int tm_loop_bit(const tm_t *tm, int pos, int k);
+
 /* Number of notes in a scale table entry (= number of usable lower pads). */
 int tm_scale_size(const uint8_t semis[12]);
 

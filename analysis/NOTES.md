@@ -175,7 +175,7 @@
 
 ## Turing Machine mode (cfw, pad mode Custom 4)
 
-- `cfw/tm_mode.c` + `cfw/tm_core.c`. Top pads = register bits 0..7 (bit 0 newest = pad 1, green; press flips); yellow = the bit of the first step played after a rewind (Start/Play reset): `tm_start_bit` = (len - 1 + pos) % len; the Function view subtracts frozen_steps,
+- `cfw/tm_mode.c` + `cfw/tm_core.c`. Top pads = register bits 0..7 (bit 0 newest = pad 1, green; press flips); yellow = the bit of the first step played after a rewind (Start/Play reset): `tm_start_bit` = (len - 1 + pos) % len; the Function view shows step k of the loop on pad k (`tm_loop_bit` = start bit - k, wrapping),
   bottom pads = scale notes (white; press toggles), encoders 1..8 = probability, length, rate (4/1..1/32,
   CW = faster), range, gate, trigger heads, velocity depth, velocity head; octave on the up/down arrows. Trigger modes (tm_heads, dense -> sparse): Every, OR(0,1/3,2/3), OR(0,1/2), 0,
   XOR(0,1/2), AND(0,1/2), AND(0,1/2)&OR(1/4,3/4), AND(0,1/3,2/3); a head at fraction f reads bit f*len (min 1
@@ -196,15 +196,16 @@
   scene launch ">", 0x11 -> 105 Function): **">" 16 = enable/disable** (feature 0x41 = disabled, saved; disabled = notes muted
   only (note_on skipped, sounding note released); clock, transport and Play keep running), **Play 0x48 = start/stop** (see below), **Function 17 =
   hold**, **up 34 / down 35 = octave** (stored 0..8, shown -4..+4, 4 = 0 = base MIDI 48 like the keyboard default); loop start = power-on or last Start. Their LEDs are driven through the same override layer (white).
-  While Function is held both rows show register bits 0..15 (frozen) and pad presses flip them.
+  While Function is held both rows show the loop in play order from its first step (pad 1, yellow) and pad presses flip them.
   Flips, Start rewind and length changes tile the loop over all 16 bits (`tm_tile`: bit k = bit k - len,
   the locked state): pitch reads bits 0..7 and velocity up to bit 15, beyond short loops, so stale copies there made
   edits fade in over several steps.
   The keyboard-octave popup captures the arrows (ctl_is_blocked 34/35), so the four mode buttons only yield
   to a menu that has captured pad 0 too (Settings etc.).
 - Bottom pads 8..15 = scale notes 1..8 (pad 15 only for 8-note scales; note 8 stored inverted in 0x62). Hold: while
-  held both rows show a frozen copy of the register while it keeps running; a pad press flips the bit
-  it showed, at position (pad + steps since freezing) mod length.
+  held both rows show the live register in loop order: pad k = step k after a rewind = bit `tm_loop_bit(pos, k)`
+  (play order is bit len-1 down to 0), so the first step is always pad 1 and a locked loop stands still;
+  playhead = the pad whose bit is 0 (step playing now, = step pos - 1), mint (amber on pad 1); a pad press flips that bit. Replaces the earlier frozen snapshot (frozen_reg / frozen_steps).
 - **Background playback:** transport (Play, MIDI Start/Continue/Stop) and stepping run in every pad mode
   (also while disabled = muted); leaving the mode keeps them, `led()` and popups only act while the mode is
   shown. Stopped: tm_mode_poll keeps `last_clock` current.

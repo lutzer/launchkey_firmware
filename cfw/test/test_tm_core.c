@@ -203,6 +203,25 @@ static void test_start_bit(void)
     CHECK(tm_start_bit(&tm, -3) == 1, "negative pos wraps");
 }
 
+/* Step k of the loop: a lone set bit at tm_loop_bit(pos, k) is played after rewind(pos) + k + 1 steps. */
+static void test_loop_bit(void)
+{
+    for (int len = TM_LEN_MIN; len <= TM_LEN_MAX; len++)
+        for (int pos = 0; pos < len; pos++)
+            for (int k = 0; k < len; k++) {
+                tm_t tm;
+                tm_init(&tm, 1);
+                tm.len = len; tm.prob = TM_PROB_MAX;
+                CHECK(tm_loop_bit(&tm, pos, 0) == tm_start_bit(&tm, pos), "len %d pos %d: step 0 is the start bit", len, pos);
+                tm.reg = (uint16_t)(1u << tm_loop_bit(&tm, pos, k));
+                tm_rewind(&tm, pos);
+                for (int i = 0; i <= k; i++) {
+                    tm_step(&tm);
+                    CHECK((tm.reg & 1) == (i == k), "len %d pos %d k %d: played at step %d", len, pos, k, i);
+                }
+            }
+}
+
 static void test_rewind(void)
 {
     for (int len = TM_LEN_MIN; len <= TM_LEN_MAX; len++)
@@ -334,6 +353,7 @@ int main(void)
     test_flip();
     test_flip_instant();
     test_start_bit();
+    test_loop_bit();
     test_rewind();
     test_velocity();
     test_gate();
