@@ -14,7 +14,8 @@
  *                      sequencer keeps following clock, transport and Play (pads keep moving)
  *   Play (0x48)        start from the first step / stop, in every mode (cfw_play_press); the
  *                      sequencer starts stopped
- *   up/down (34/35)    octave; with Function held: move the loop's first step one step right / left
+ *   up/down (34/35)    octave; with Function held: rotate the loop one step right / left (the
+ *                      pattern moves under the start and the playhead, heard from the next step)
  *   encoders 1..8      probability, length, rate, range, gate length, trigger heads, velocity
  *                      depth, velocity head (moves the register window velocity is read from,
  *                      see tm_velocity); mapping and ranges: params[] / enc_param[]
@@ -619,8 +620,8 @@ static void button_pressed(uint32_t id)
     case BTN_OCT_UP:
     case BTN_OCT_DOWN:
         if (st.hold) {
-            /* the first step becomes the next (up) / previous (down) one: pos counts from it */
-            st.pos = (uint8_t)((st.pos + (id == BTN_OCT_UP ? tm.len - 1 : 1)) % tm.len);
+            /* rotating the loop back one step moves every step one pad right in the Function view */
+            tm_rewind(&tm, id == BTN_OCT_UP ? 1 : tm.len - 1);
             draw_register();
             break;
         }
