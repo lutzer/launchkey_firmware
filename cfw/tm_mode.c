@@ -14,7 +14,7 @@
  *                      sequencer keeps following clock, transport and Play (pads keep moving)
  *   Play (0x48)        start from the first step / stop, in every mode (cfw_play_press); the
  *                      sequencer starts stopped
- *   up/down (34/35)    octave
+ *   up/down (34/35)    octave; with Function held: move the loop's first step one step right / left
  *   encoders 1..8      probability, length, rate, range, gate length, trigger heads, velocity
  *                      depth, velocity head (moves the register window velocity is read from,
  *                      see tm_velocity); mapping and ranges: params[] / enc_param[]
@@ -327,8 +327,8 @@ static void draw_buttons(void)
         return;
     led(BTN_ENABLE, st.enabled ? WHITE_ON : WHITE_DIM);
     led(BTN_HOLD, st.hold ? WHITE_ON : WHITE_DIM);
-    led(BTN_OCT_UP, tm.octave < TM_OCT_MAX ? WHITE_ON : WHITE_DIM);
-    led(BTN_OCT_DOWN, tm.octave > 0 ? WHITE_ON : WHITE_DIM);
+    led(BTN_OCT_UP, st.hold || tm.octave < TM_OCT_MAX ? WHITE_ON : WHITE_DIM);
+    led(BTN_OCT_DOWN, st.hold || tm.octave > 0 ? WHITE_ON : WHITE_DIM);
 }
 
 static void draw_all(void)
@@ -618,6 +618,12 @@ static void button_pressed(uint32_t id)
         break;
     case BTN_OCT_UP:
     case BTN_OCT_DOWN:
+        if (st.hold) {
+            /* the first step becomes the next (up) / previous (down) one: pos counts from it */
+            st.pos = (uint8_t)((st.pos + (id == BTN_OCT_UP ? tm.len - 1 : 1)) % tm.len);
+            draw_register();
+            break;
+        }
         param_change(P_OCT, id == BTN_OCT_UP ? 1 : -1);
         break;
     }

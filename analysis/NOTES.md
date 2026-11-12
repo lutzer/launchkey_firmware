@@ -205,7 +205,7 @@
 - Bottom pads 8..15 = scale notes 1..8 (pad 15 only for 8-note scales; note 8 stored inverted in 0x62). Hold: while
   held both rows show the live register in loop order: pad k = step k after a rewind = bit `tm_loop_bit(pos, k)`
   (play order is bit len-1 down to 0), so the first step is always pad 1 and a locked loop stands still;
-  playhead = the pad whose bit is 0 (step playing now, = step pos - 1), mint (amber on pad 1); a pad press flips that bit. Replaces the earlier frozen snapshot (frozen_reg / frozen_steps).
+  playhead = the pad whose bit is 0 (step playing now, = step pos - 1), mint (amber on pad 1); a pad press flips that bit. Function + up/down: st.pos -= / += 1 (mod len), i.e. the loop start moves to step 1 / step len-1. Replaces the earlier frozen snapshot (frozen_reg / frozen_steps).
 - **Background playback:** transport (Play, MIDI Start/Continue/Stop) and stepping run in every pad mode
   (also while disabled = muted); leaving the mode keeps them, `led()` and popups only act while the mode is
   shown. Stopped: tm_mode_poll keeps `last_clock` current.
