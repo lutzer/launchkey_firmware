@@ -14,6 +14,8 @@
  *                      sequencer keeps following clock, transport and Play (pads keep moving)
  *   Play (0x48)        start from the first step / stop, in every mode, without a DAW
  *                      connection only (cfw_play_press); the sequencer starts stopped
+ *   Shift + Play       arm a one-shot run: the next start plays run_steps x 1/16, then stops;
+ *                      while armed encoder 1 sets run_steps (1..32, saved), in every pad mode
  *   up/down (34/35)    octave; with Function held: rotate the loop one step right / left (the
  *                      pattern moves under the start and the playhead, heard from the next step)
  *   encoders 1..8      probability, length, rate, range, gate length, trigger heads, velocity
@@ -43,7 +45,6 @@
 #define FEAT_SCALE_TYPE   0x3E
 #define FEAT_SCALE_ON     0x4A
 #define FEAT_PAD_MODE     0x1D
-#define FEAT_SHIFT        0x3F
 #define CTL_SHIFT         25
 #define PAD_SELECT        15          /* Shift + this pad selects pad Custom 4 */
 
@@ -77,9 +78,10 @@
  * Persistent ones are feature params (free ids >= 0x40: ids 0x20..0x3F double as 14-bit LSBs).
  * Feature values are 7 bits: P_MASK holds notes 1..7, P_NOTE8_OFF the 8th note inverted (records
  * from before it existed read 0 = on, as the 8th note used to be always on). P_ENABLE is stored
- * inverted too (0 = enabled), for the same reason. P_VEL_HEAD 0 = the window before it existed. */
+ * inverted too (0 = enabled), for the same reason. P_VEL_HEAD 0 = the window before it existed.
+ * P_RUN (one-shot run length, Shift + Play) is stored XOR RUN_STEPS_DEFAULT, so 0 = the default. */
 enum { P_PROB, P_LEN, P_RATE, P_RANGE, P_GATE, P_HEADS, P_OCT, P_MASK, P_CHAN, P_NOTE8_OFF, P_VEL, P_ENABLE,
-       P_VEL_HEAD, P_COUNT };
+       P_VEL_HEAD, P_RUN, P_COUNT };
 typedef struct {
     uint8_t id;             /* feature param id, 0 = not stored */
     uint8_t min, max;       /* stored value range (feature values are 7 bits, so max <= 127) */
@@ -101,7 +103,10 @@ static const param_def_t params[P_COUNT] = {
     [P_VEL]       = {0x63, 0, TM_VEL_MAX, TM_VEL_STEP, 0, "Vel"},
     [P_ENABLE]    = {0x41, 0, 1, 1, 0, 0},
     [P_VEL_HEAD]  = {0x42, 0, TM_VEL_HEADS - 1, 1, 0, "VHd"},
+    [P_RUN]       = {0x43, 0, 40, 1, 0, 0},
 };
+#define RUN_STEPS_DEFAULT 8
+#define RUN_STEPS_MAX     32
 /* encoders 1..8 */
 static const uint8_t enc_param[ENC_COUNT] = {P_PROB, P_LEN, P_RATE, P_RANGE, P_GATE, P_HEADS, P_VEL, P_VEL_HEAD};
 #define PARAM_MAGIC_ID    0x60        /* != PARAM_MAGIC: stored values are not ours -> defaults */
@@ -128,7 +133,8 @@ static struct {
     uint8_t pos;             /* steps since the loop start, mod length (for rewinding) */
     uint8_t popup_pending;   /* show the mode popup from the main loop, after the stock one */
     uint8_t armed;           /* Shift + Play: the next start is a one-shot run */
-    uint8_t run;             /* one-shot run in progress: stops after TM_RUN_STEPS 1/16 steps */
+    uint8_t run;             /* one-shot run in progress: stops after run_steps 1/16 steps */
+    uint8_t run_steps;       /* one-shot run length 1..RUN_STEPS_MAX (encoder 1 while armed) */
     uint8_t run_done;        /* a run ended by itself (tm_run_done) */
     uint32_t run_start;      /* clock tick the run started on */
 } st;
@@ -197,6 +203,7 @@ static uint32_t param_value(int p)
     case P_MASK:  return tm.mask & 0x7F;
     case P_NOTE8_OFF: return !(tm.mask & NOTE8_BIT);
     case P_VEL_HEAD: return tm.vel_head;
+    case P_RUN:   return st.run_steps ^ RUN_STEPS_DEFAULT;
     default:      return 0;
     }
 }
@@ -225,6 +232,7 @@ static void param_apply(int p, int value)
     case P_VEL:   tm.vel = v; break;
     case P_VEL_HEAD: tm.vel_head = v; break;
     case P_ENABLE: st.enabled = v == 0; break;     /* tm_mode_poll releases a muted note */
+    case P_RUN:   st.run_steps = (uint8_t)clamp(v ^ RUN_STEPS_DEFAULT, 1, RUN_STEPS_MAX); break;
     }
 }
 
@@ -551,6 +559,13 @@ int tm_armed(void)
     return st.armed;
 }
 
+void tm_run_popup(void)
+{
+    char v[20];
+    put_str(put_num(put_str(v, "Armed "), st.run_steps), " Steps");
+    popup("Transport", v);
+}
+
 int tm_run_done(void)
 {
     int done = st.run_done;
@@ -615,6 +630,12 @@ static int menu_owns_button(uint32_t id)
 static int is_enc(uint32_t id)
 {
     return id >= ENC_FIRST && id < ENC_FIRST + ENC_COUNT;
+}
+
+/* Armed (Shift + Play): encoder 1 sets the one-shot run length, in every pad mode. */
+static int run_enc(uint32_t id)
+{
+    return st.armed && id == ENC_FIRST;
 }
 
 /* Bit index in st.owned: pads, then encoders, then the mode buttons. */
@@ -704,7 +725,9 @@ int tm_io_event(int list, uint32_t id, uint32_t value)
     uint32_t bit = 1u << slot;
     if (list == TM_IO_PRESS) {  /* the press decides who owns the control until its release */
         int take;
-        if (st.shift)           /* Shift + encoder = show value; the Shift overlay's capture doesn't count */
+        if (run_enc(id))
+            take = 1;
+        else if (st.shift)      /* Shift + encoder = show value; the Shift overlay's capture doesn't count */
             take = st.active && is_enc(id);
         else
             take = st.active && !(slot >= SLOT_BTN ? menu_owns_button(id) : menu_owns(id));
@@ -728,6 +751,14 @@ int tm_io_event(int list, uint32_t id, uint32_t value)
 int tm_enc_event(int list, uint32_t id, int32_t delta)
 {
     delta = (int16_t)delta;     /* the encoder module passes deltas as u16 (-1 = 0xFFFF) */
+    if (run_enc(id)) {
+        if (list == TM_REL_STEP) {
+            st.run_steps = (uint8_t)clamp(st.run_steps + delta, 1, RUN_STEPS_MAX);
+            param_save(P_RUN);
+            tm_run_popup();
+        }
+        return 1;
+    }
     if (!st.active || !is_enc(id) || (!st.shift && menu_owns(id)))
         return 0;
     int p = enc_param[id - ENC_FIRST];
@@ -788,6 +819,7 @@ void tm_mode_init(void)
     tm_init(&tm, *systick_val ^ g_clock_ticks);
     st.note = -1;
     st.enabled = 1;
+    st.run_steps = RUN_STEPS_DEFAULT;
     /* Define the persistent params at feature-init time like the stock features do, so
      * confstore restores them (and re-applies them through the listener) after loading. */
     for (int p = 0; p < P_COUNT; p++)
@@ -811,7 +843,7 @@ void tm_mode_poll(void)
         apply_transport(event, transport_clock);
     }
     /* end of a one-shot run: checked before stepping, so the step after it never plays */
-    if (st.playing && st.run && g_clock_ticks - st.run_start >= TM_RUN_STEPS * TM_RUN_STEP_TICKS) {
+    if (st.playing && st.run && g_clock_ticks - st.run_start >= (uint32_t)st.run_steps * TM_RUN_STEP_TICKS) {
         apply_transport(TM_STOP, g_clock_ticks);
         st.run_done = 1;
     }

@@ -91,14 +91,13 @@ void cfw_midi_stop(void)
  * the DAW only (stock).
  */
 #define CTL_PLAY       0x48
-#define FEAT_SHIFT     0x3F
 #define PLAY_GREEN     0x00FF00
 
 /* Play LED: green while playing, flashing while armed (standalone); with a DAW connected the DAW drives it. */
 static void play_led(void)
 {
     if (g_transport.standalone) {
-        int armed = tm_armed() && !tm_playing();
+        int armed = tm_armed();     /* implies stopped: a start consumes the arm */
         led_override_color(CTL_PLAY, tm_playing() || armed ? PLAY_GREEN : 0);
         led_override(CTL_PLAY, armed ? LED_FLASH : LED_STATIC);
     } else {
@@ -110,6 +109,8 @@ static void play_led(void)
 static void play_led_poll(void)
 {
     static uint8_t drawn;       /* bit 0 playing, bit 1 standalone, bit 2 armed, bit 7 valid */
+    if (!g_transport.standalone)
+        tm_arm(0);              /* Shift + Play is standalone only: a DAW connection cancels the arm */
     uint8_t now = (uint8_t)(0x80 | (tm_playing() ? 1 : 0) | (g_transport.standalone ? 2 : 0) |
                             (tm_armed() ? 4 : 0));
     if (now != drawn) {
@@ -118,11 +119,20 @@ static void play_led_poll(void)
     }
 }
 
+/* Play start / stop: the stock handler sends MIDI Start / Stop by toggling `running`, so set that
+ * first; then the sequencer and the arp follow. */
+static void transport_play(int start)
+{
+    g_transport.running = (uint8_t)!start;
+    play_press(CTL_PLAY);
+    tm_play_button(start);
+}
+
 /* A one-shot run stopped the transport: MIDI Stop, if our Play sent the Start (running = 1); a run
- * started by an external MIDI Start leaves running 0, so nothing is echoed back. */
+ * started by an external MIDI Start leaves running 0 (so does a DAW connection), so nothing is echoed. */
 static void run_end_poll(void)
 {
-    if (tm_run_done() && g_transport.standalone && g_transport.running)
+    if (tm_run_done() && g_transport.running)
         play_press(CTL_PLAY);
 }
 
@@ -132,13 +142,10 @@ static void shift_play(void)
         tm_arm(0);
         tm_popup("Transport", "Not Playing");
     } else {
-        if (tm_playing()) {     /* stop like Play does */
-            g_transport.running = 1;
-            play_press(CTL_PLAY);
-            tm_play_button(0);
-        }
+        if (tm_playing())       /* stop like Play does */
+            transport_play(0);
         tm_arm(1);
-        tm_popup("Transport", "Armed 8 Steps");
+        tm_run_popup();
     }
     play_led();
 }
@@ -154,9 +161,7 @@ void cfw_play_press(uint32_t id)
         return;
     }
     int start = !tm_playing();
-    g_transport.running = (uint8_t)!start;
-    play_press(id);
-    tm_play_button(start);
+    transport_play(start);
     tm_popup("Transport", start ? "Playing" : "Not Playing");
     play_led();
 }

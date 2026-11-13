@@ -125,7 +125,8 @@
   0x0801F584, 0x0801F660):** 02-07 (14-bit, written as 0x4002..0x4007, LSBs at 22-27), 1B-1F, 3C-3F, 44-47,
   49-4F, 53-59, 5C, 64-77, 79-7D; persistent 3C 3D 3E 4A 4F 64-77 79. Computed IDs only in layout_select
   (1D-1F), `feat_on_store_loaded` (defined IDs) and the CC handler below. 14-bit aliasing exists only below
-  0x40 (`feat_set_param` clears the flag for IDs >= 0x40). New cfw IDs: pick >= 0x40 outside this list.
+  0x40 (`feat_set_param` clears the flag for IDs >= 0x40). New cfw IDs: pick >= 0x40 outside this list
+  (used by cfw: 0x41-0x43, 0x50-0x52, 0x5A, 0x5B, 0x5D-0x63; still free: 0x40, 0x48, 0x78, 0x7E, 0x7F).
 - The persistent blob has one byte per ID; its confstore record (key 0xFEA70BE5, 0x84 bytes) keeps its size when
   cfw uses more IDs, so the SPI layout and stock values are unaffected. Slots of never-persistent IDs read as
   whatever the record holds (0 on old records) -> cfw uses a marker ID.
@@ -241,11 +242,15 @@
   Play) and sets `st.armed` (`tm_arm`); again = cancel. The next transition to playing in
   `apply_transport` (Play, MIDI Start, Continue while stopped; a Start during a run restarts it) consumes
   `armed` and starts `run` at the exact start clock. tm_mode_poll checks `g_clock_ticks - run_start >=
-  TM_RUN_STEPS * TM_RUN_STEP_TICKS` (8 × 6 ticks) **before** advance_clock, so the step after the window
+  run_steps * TM_RUN_STEP_TICKS` (n × 6 ticks) **before** advance_clock, so the step after the window
   never plays; it stops via apply_transport(TM_STOP) and sets run_done. cfw_poll (`run_end_poll`) then sends
   FC through play_press only if `g_transport.running` (= our Play sent FA; external Start leaves it 0).
-  Play LED flashes (LED_FLASH) while armed and stopped. Length is fixed for now (tm_mode.h constants;
-  popup text "Armed 8 Steps" hard-coded) – a setting would become a feature param >= 0x40.
+  Play LED flashes (LED_FLASH) while armed and stopped. Length `st.run_steps` 1..32 = param P_RUN, feature
+  0x43, stored XOR 8 (old records: 0 = default 8). While armed (`run_enc`) encoder 1 belongs to the run in
+  every pad mode: the touch press is taken (TM_ENC_ONLY), step-list turns change the length (popup
+  "Transport" / "Armed <n> Steps", `tm_run_popup`), all relin lists consumed. A DAW connection clears the
+  arm (play_led_poll), so it never lingers invisibly in DAW mode. Play start/stop, Shift + Play's stop and
+  the run end share `transport_play` / play_press (stock sends FA/FC by toggling `running`).
 - **Shift overlay LEDs:** `shift_overlay_leds` 0x08022A88 (menu 0xE, via 0x08022CD8) draws through `shift_led`
   0x08022A5C (only if `ui_menu_owns(id, 0xE)`, then `led_set` 0x0802A612 = led_override(id, 0) + colour):
   top row = encoder modes, bottom row = pad modes (current 0x0086FF, available 0x001642), 0x28.. other buttons.
@@ -261,7 +266,7 @@
   third port (stack sp+0x50, raw-byte mode, serial ring -> USART6 @31250 baud via DMA) and links it to the MIDI
   port (`port+0x18`, `0x08013EE8`); `midi_send3` walks that chain, so MIDI-port notes also go out on DIN.
 - **Persistence:** feature params 0x50 prob, 0x51 length, 0x52 rate, 0x5A octave, 0x5B range, 0x5D gate,
-  0x5E trigger heads, 0x5F note mask (7 bits), 0x61 MIDI channel, 0x62 note 8 off, 0x63 velocity depth, 0x42 velocity head, 0x41 disabled
+  0x5E trigger heads, 0x5F note mask (7 bits), 0x61 MIDI channel, 0x62 note 8 off, 0x63 velocity depth, 0x42 velocity head, 0x43 one-shot steps (XOR 8), 0x41 disabled
   (inverted: records from before it read 0 = enabled), 0x60 marker (0x5A), defined with flags 3 in cfw_init. Marker
   missing (first boot / older settings record) -> defaults are stored. Ids 0x20..0x3F avoided: they alias the
   LSBs of 14-bit params 0x00..0x1F.

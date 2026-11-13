@@ -129,6 +129,7 @@ void feat_set_value_volatile(uint32_t id, uint32_t value);
  * close_views, set shown, view_changed, ui_popup_begin). Popup: arp_popup_title(key, string id)
  * opens the popup with a title, popup_field_text(key, field, str) sets its value line. */
 #define UI_MENU_ARP    1
+#define FEAT_SHIFT     0x3F  /* feature param mirroring Shift (127 held / 0) */
 #define UI_MENU_SHIFT  0xE   /* Shift overlay: mode-select pads (bottom row = pad modes) */
 #define UI_MENU_SCALE  0xF
 uint32_t ui_menu_owns(uint32_t id, uint32_t menu);
