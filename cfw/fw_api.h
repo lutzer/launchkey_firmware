@@ -196,5 +196,7 @@ void play_press(uint32_t id);
 /* Shift overlay (menu 0xE) LED refresh 0x08022A88: bottom-row pads = pad modes (current 0x0086FF,
  * others 0x001642); its last call is shift_leds_tail (no args). */
 void shift_leds_tail(void);
+/* Redraws the Shift overlay LEDs (mode pads); does nothing while Shift is up. */
+void shift_overlay_leds(void);
 
 #endif

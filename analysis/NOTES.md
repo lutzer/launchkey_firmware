@@ -271,6 +271,8 @@
   tm_mode_poll (same main-loop pass, after the encoder switch) calls ui_select_layout(prev_pad_mode, 1).
   prev_pad_mode = last 0x1D value != 8 (default 2 when booted into the mode). The pad-mode popup replaces the
   encoder-mode one.
+  set_active(0) releases the pad LED overrides, which the Shift overlay draws through too (top row went dark),
+  so the leave path redraws it with `shift_overlay_leds` while Shift is held.
 - Menus: controls captured by a menu (ctl_is_blocked) go to the menu - except after (re)selecting pad Custom 4:
   Scale/Arp screens keep encoders captured after leaving them, so selecting the mode sets a priority flag
   that wins over captures until any other button (not Shift/pads/encoders/the four mode buttons) is pressed.

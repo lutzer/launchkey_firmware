@@ -94,3 +94,4 @@ PROVIDE(g_arp_state         = 0x2000F448);
 PROVIDE(play_press          = 0x08022710 | 1);
 PROVIDE(g_transport         = 0x2000F480);
 PROVIDE(shift_leds_tail     = 0x0802B0D2 | 1);
+PROVIDE(shift_overlay_leds  = 0x08022A88 | 1);

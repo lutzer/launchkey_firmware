@@ -872,8 +872,12 @@ void tm_mode_poll(void)
         note_off();
     if (st.leave) {             /* after the encoder mode switch (same main loop pass) */
         st.leave = 0;
-        if (st.active)
+        if (st.active) {
             ui_select_layout(st.prev_pad_mode, LAYOUT_PADS);
+            /* leaving released our pad LEDs, the Shift overlay's encoder mode pad with them */
+            if (st.shift)
+                shift_overlay_leds();
+        }
     }
     if (!st.active)
         return;
