@@ -87,9 +87,7 @@ Turning an encoder shows its value on the display.
 
 ## Installation
 
-The firmware can be either installed through a browser tool or following the proceducre writte under [Development](#development).
-
-To upload a custom firmware release, download the release fromt the releases page and unzip it.
+To install the custom firmware on your device, download the latest release from the [Release Page](https://github.com/lutzer/launchkey_firmware/releases) and unpack it.
 
 1. open `uploader.html` in **Chrome or Edge** (Mac or Windows; Safari has no Web MIDI).
 2. Choose the `.syx` file. The page checks it (format, CRC, size) and shows its version.
