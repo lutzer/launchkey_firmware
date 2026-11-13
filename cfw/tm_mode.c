@@ -15,7 +15,7 @@
  *   Play (0x48)        start from the first step / stop, in every mode, without a DAW
  *                      connection only (cfw_play_press); the sequencer starts stopped
  *   Shift + Play       arm a one-shot run: the next start plays run_steps x 1/16, then stops;
- *                      while armed encoder 1 sets run_steps (1..32, saved), in every pad mode
+ *                      while armed encoder 1 sets run_steps (1..32, 64, 128, saved), in every pad mode
  *   up/down (34/35)    octave; with Function held: rotate the loop one step right / left (the
  *                      pattern moves under the start and the playhead, heard from the next step)
  *   encoders 1..8      probability, length, rate, range, gate length, trigger heads, velocity
@@ -79,7 +79,7 @@
  * Feature values are 7 bits: P_MASK holds notes 1..7, P_NOTE8_OFF the 8th note inverted (records
  * from before it existed read 0 = on, as the 8th note used to be always on). P_ENABLE is stored
  * inverted too (0 = enabled), for the same reason. P_VEL_HEAD 0 = the window before it existed.
- * P_RUN (one-shot run length, Shift + Play) is stored XOR RUN_STEPS_DEFAULT, so 0 = the default. */
+ * P_RUN (one-shot run length index, Shift + Play) is stored XOR RUN_STEPS_DEFAULT, so 0 = the default. */
 enum { P_PROB, P_LEN, P_RATE, P_RANGE, P_GATE, P_HEADS, P_OCT, P_MASK, P_CHAN, P_NOTE8_OFF, P_VEL, P_ENABLE,
        P_VEL_HEAD, P_RUN, P_COUNT };
 typedef struct {
@@ -102,11 +102,12 @@ static const param_def_t params[P_COUNT] = {
     [P_NOTE8_OFF] = {0x62, 0, 1, 1, 0, 0},
     [P_VEL]       = {0x63, 0, TM_VEL_MAX, TM_VEL_STEP, 0, "Vel"},
     [P_ENABLE]    = {0x41, 0, 1, 1, 0, 0},
-    [P_VEL_HEAD]  = {0x42, 0, TM_VEL_HEADS - 1, 1, 0, "VHd"},
-    [P_RUN]       = {0x43, 0, 40, 1, 0, 0},
+    [P_VEL_HEAD]  = {0x42, 0, TM_VEL_HEADS - 1, 1, 0, "Vreg"},
+    [P_RUN]       = {0x43, 0, 63, 1, 0, 0},
 };
 #define RUN_STEPS_DEFAULT 8
-#define RUN_STEPS_MAX     32
+#define RUN_STEPS_MAX     34          /* index: 1..32 steps, then 33 = 64, 34 = 128 */
+static uint32_t run_len(uint32_t i) { return i <= 32 ? i : 32u << (i - 32); }
 /* encoders 1..8 */
 static const uint8_t enc_param[ENC_COUNT] = {P_PROB, P_LEN, P_RATE, P_RANGE, P_GATE, P_HEADS, P_VEL, P_VEL_HEAD};
 #define PARAM_MAGIC_ID    0x60        /* != PARAM_MAGIC: stored values are not ours -> defaults */
@@ -134,7 +135,7 @@ static struct {
     uint8_t popup_pending;   /* show the mode popup from the main loop, after the stock one */
     uint8_t armed;           /* Shift + Play: the next start is a one-shot run */
     uint8_t run;             /* one-shot run in progress: stops after run_steps 1/16 steps */
-    uint8_t run_steps;       /* one-shot run length 1..RUN_STEPS_MAX (encoder 1 while armed) */
+    uint8_t run_steps;       /* one-shot run length index 1..RUN_STEPS_MAX (run_len; encoder 1 while armed) */
     uint8_t run_done;        /* a run ended by itself (tm_run_done) */
     uint32_t run_start;      /* clock tick the run started on */
 } st;
@@ -445,7 +446,7 @@ static void show_param(int param)
         break;
     case P_VEL_HEAD: {
         uint32_t lo = (uint32_t)tm_vel_shift(&tm) + 1u;     /* "Bits 5-11" */
-        title = "Vel Head";
+        title = "Vel Register";
         p = put_num(put_str(put_num(put_str(p, "Bits "), lo), "-"), lo + 6u);
         break;
     }
@@ -562,7 +563,7 @@ int tm_armed(void)
 void tm_run_popup(void)
 {
     char v[20];
-    *put_str(put_num(put_str(v, "Armed "), st.run_steps), " Steps") = 0;    /* put_* don't terminate */
+    *put_str(put_num(put_str(v, "Armed "), run_len(st.run_steps)), " Steps") = 0;    /* put_* don't terminate */
     popup("Transport", v);
 }
 
@@ -843,7 +844,7 @@ void tm_mode_poll(void)
         apply_transport(event, transport_clock);
     }
     /* end of a one-shot run: checked before stepping, so the step after it never plays */
-    if (st.playing && st.run && g_clock_ticks - st.run_start >= (uint32_t)st.run_steps * TM_RUN_STEP_TICKS) {
+    if (st.playing && st.run && g_clock_ticks - st.run_start >= run_len(st.run_steps) * TM_RUN_STEP_TICKS) {
         apply_transport(TM_STOP, g_clock_ticks);
         st.run_done = 1;
     }

@@ -245,7 +245,7 @@
   run_steps * TM_RUN_STEP_TICKS` (n × 6 ticks) **before** advance_clock, so the step after the window
   never plays; it stops via apply_transport(TM_STOP) and sets run_done. cfw_poll (`run_end_poll`) then sends
   FC through play_press only if `g_transport.running` (= our Play sent FA; external Start leaves it 0).
-  Play LED flashes (LED_FLASH) while armed and stopped. Length `st.run_steps` 1..32 = param P_RUN, feature
+  Play LED flashes (LED_FLASH) while armed and stopped. Length index `st.run_steps` 1..34 (`run_len`: 1..32, 64, 128) = param P_RUN, feature
   0x43, stored XOR 8 (old records: 0 = default 8). While armed (`run_enc`) encoder 1 belongs to the run in
   every pad mode: the touch press is taken (TM_ENC_ONLY), step-list turns change the length (popup
   "Transport" / "Armed <n> Steps", `tm_run_popup`), all relin lists consumed. A DAW connection clears the

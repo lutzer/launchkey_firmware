@@ -17,8 +17,8 @@ Custom firmware for the **Novation Launchkey Mini MK4** (25 and 37 keys), built 
   paused)
 - **One-shot run (Shift + Play)** – arms the transport instead of starting it ("Transport: Armed 8 Steps",
   Play flashes green; if it was playing, it stops first). This mode allows you to record a small sequence
-  into a sequencer, without repeating it over and over. While armed, **encoder 1 sets the length: 1–32
-  steps of 1/16** (saved, default 8 = two beats), in every pad mode. The next start – Play or MIDI Start /
+  into a sequencer, without repeating it over and over. While armed, **encoder 1 sets the length: 1–32,
+  64 or 128 steps of 1/16** (saved, default 8 = two beats), in every pad mode. The next start – Play or MIDI Start /
   Continue – runs for that long and then stops the transport by itself. Shift + Play while armed cancels.
   Only without a DAW connection (connecting a DAW cancels the arm). The window is clock time, not arp steps: the Turing Machine starts on its
   first step, the arp keeps its own phase, so an arp note can fall right at the cut
@@ -45,7 +45,7 @@ value picks a note from the current scale, and trigger heads decide whether a st
 | Top row (green) | Register bits 1–8, moving one pad to the right per step. The **yellow** pad is the step the sequence restarts from (MIDI Start / reset), so it moves along too. Dark = beyond the loop length. |
 | Bottom row (white) | **Scale notes** (pad 1 = root, pad 8 = 8th note of 8-note scales). Press to switch a note on (bright) or off (dim); pads beyond the scale are dark. A disabled note is replaced by the closest enabled note. With Scale off all eight pads are lit and all 12 semitones are used. |
 | **Play** (transport) | **Start / stop** the sequencer (and the arp), in every pad mode. Start begins at the first step of the loop (the yellow pad) on the next clock tick. Play also sends MIDI Start / Stop as usual. With a DAW connected Play only goes to the DAW; use the DAW's MIDI transport instead. |
-| **Shift + Play** | **Arm a one-shot run**: the next start plays 1–32 steps of 1/16 (default 8), then stops. While armed (Play flashes) **encoder 1 sets the number of steps** (saved); Shift + Play again = cancel. |
+| **Shift + Play** | **Arm a one-shot run**: the next start plays 1–32, 64 or 128 steps of 1/16 (default 8), then stops. While armed (Play flashes) **encoder 1 sets the number of steps** (saved); Shift + Play again = cancel. |
 | **>** (above Function) | **Enable / disable** the sequencer (bright = enabled). Disabled **mutes** its notes; everything else keeps going (clock, Play, MIDI Start / Stop, the pattern on the pads), so enabling it again brings the notes back in time. Saved. |
 | **Function** (next to the pads) | **Hold.** While held, the pads show the loop in playing order starting from its first step: pad 1 (yellow) = step 1, then left to right, top row = steps 1–8, bottom row = 9–16. The **playhead** (the step playing now) is mint, or amber when it is on step 1. The view stays put while the sequence runs (only bits that randomly change update), and **pressing a pad flips that step**. **Up / Down rotate the loop** one step right / left (ends wrap around; start step and playhead stay put, so the shifted pattern plays from the next step on). |
 | **Up / Down arrows** (next to the pads) | **Octave** −4 to +4 (0 = lowest note MIDI 48 + root, the keyboard's default octave; an arrow is dim when the end is reached). **With Function held: rotate the loop** one step right (up) or left (down). You can use this rotation to shift a pattern on the downbeat for example. |
@@ -64,6 +64,23 @@ value picks a note from the current scale, and trigger heads decide whether a st
 | 8 | Velocity head | Moves the window the velocity is read from (shown as "Bits 5-11" … "Bits 10-16", then "Bits 1-7" … "Bits 4-10"): each position gives a different accent pattern from the same loop. Only audible with velocity depth above 0. |
 
 Turning an encoder shows its value on the display.
+
+### Trigger heads
+
+Each head reads one bit of the loop. A head at ½ reads the bit that played half a loop ago (length 8: 4 steps
+ago, length 16: 8). Positions scale with the length, so the rhythm keeps its shape at any length. A step plays
+when the heads' combination is 1:
+
+| Mode | Heads | Plays when |
+|---|---|---|
+| Every | – | always |
+| OR 3 | now, ⅓, ⅔ | any of them is 1 |
+| OR 2 | now, ½ | either is 1 |
+| Bit 1 | now | it is 1 (like the module) |
+| XOR | now, ½ | exactly one is 1 |
+| AND 2 | now, ½ | both are 1 |
+| AND 2+ | now, ½, ¼, ¾ | now and ½ are 1, plus ¼ or ¾ |
+| AND 3 | now, ⅓, ⅔ | all three are 1 |
 
 ### Good to know
 
