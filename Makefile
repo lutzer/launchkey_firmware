@@ -2,7 +2,9 @@
 #
 #   make            unpack original + build analysis ELF
 #   make verify     prove the syx codec round-trips byte-for-byte
-#   make patched    apply patches/*.patch, bump version, repack -> build/patched.syx
+#   make patched    apply patches/*.patch, stamp version 1.3.1563.<VERSION file>, repack -> build/patched.syx
+#                   (one-off: make patched REV=7)
+#   make release    build/launchkeyminimk4-cfw-<version>.zip: uploader.html + the patched .syx
 #   make disasm     full Thumb disassembly -> build/lkmini4-1563.s
 #   make inquiry    ask the connected Launchkey for model + firmware version
 #   make upload     build + flash build/patched.syx (asks for confirmation)
@@ -17,6 +19,7 @@ ELF      := build/lkmini4-$(VERSION).elf
 SYMS     := analysis/symbols.txt
 CFW_PATCHES := patches/100-cfw-code.patch patches/101-cfw-hooks.patch
 PATCHES  := $(sort $(wildcard patches/*.patch) $(CFW_PATCHES))
+REV      ?= $(shell cat VERSION)
 PY       := uv run python
 OBJDUMP  := xcrun llvm-objdump
 
@@ -67,13 +70,25 @@ build/test_tm_core: cfw/test/test_tm_core.c cfw/tm_core.c cfw/tm_core.h | build
 cfw-test: build/test_tm_core
 	$<
 
-# Version field 4 = number of patches (stock 1.3.1563.1717 -> 1.3.1563.<n>)
-build/patched.bin: $(BIN) $(PATCHES) tools/apply_patches.py
-	$(PY) tools/apply_patches.py $(BIN) $@ --meta $(BIN).json $(PATCHES)
+# Version field 4 = REV (VERSION file): stock 1.3.1563.1717 -> 1.3.1563.<REV>. Always re-applied (FORCE,
+# ~1 s), so a changed VERSION or a REV= override can never be skipped; `patched` repacks every time anyway.
+build/patched.bin: $(BIN) $(PATCHES) tools/apply_patches.py FORCE
+	$(PY) tools/apply_patches.py $(BIN) $@ --meta $(BIN).json --level $(REV) $(PATCHES)
 
 patched: build/patched.bin
 	$(PY) tools/lkfw.py pack $< build/patched.syx --meta $<.json
 	$(PY) tools/lkfw.py verify build/patched.syx
+
+# Release bundle: the patched firmware as launchkeyminimk4-cfw-<version>.syx + the Web MIDI uploader
+RELEASE  := launchkeyminimk4-cfw-1.3.$(VERSION).$(REV)
+
+release: patched
+	rm -rf build/release build/$(RELEASE).zip
+	mkdir -p build/release
+	cp build/patched.syx build/release/$(RELEASE).syx
+	cp tools/uploader.html build/release/uploader.html
+	cd build/release && zip -q -X ../$(RELEASE).zip $(RELEASE).syx uploader.html
+	@echo "-> build/$(RELEASE).zip"
 
 build:
 	mkdir -p build
@@ -90,4 +105,6 @@ upload: patched
 restore: $(ORIG)
 	$(PY) tools/send_syx.py $(ORIG)
 
-.PHONY: all verify disasm patched inquiry upload restore clean cfw cfw-test
+FORCE:
+
+.PHONY: all verify disasm patched release inquiry upload restore clean cfw cfw-test

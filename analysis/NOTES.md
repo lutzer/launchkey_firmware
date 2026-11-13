@@ -21,7 +21,7 @@
       Same values as u32s at 0x080081F0 (`g_fw_version`). Still unknown whether the bootloader checks them.
       App side: boot screen prints all 4 fields; inquiry reply (0x080115B6) sends major, minor, build only;
       0x7C header version is just stored in the update state (0x0801B92C), not compared. Patched builds put the
-      patch count in field 4 (see apply_patches.py).
+      `VERSION` file's number in field 4 (apply_patches.py --level, Makefile REV).
 - [x] Does the bootloader accept an image larger than the original (code-cave growth)? Yes (see above).
 - [ ] MIDI input dispatch / SysEx handler (entry point for new functions).
 - [ ] Recovery: bootloader mode button combo, in case a patched image doesn't boot.

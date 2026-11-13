@@ -10,17 +10,20 @@ details belong here and in `analysis/NOTES.md`.
 - `tools/lkfw.py` – SysEx codec: `unpack`, `pack`, `info`, `verify` (pack recomputes size + CRC)
 - `tools/mkelf.py` – wraps the raw image in an ARM ELF (base 0x08008000, Thumb, vector + `analysis/symbols.txt` names)
 - `tools/apply_patches.py` – applies `patches/*.patch` (`<addr> <orig hex|-> <new hex>`, orig bytes are verified;
-  first comment line = patch title) and sets version field 4 to the patch count: stock 1.3.1563.1717 -> 1.3.1563.<n>
+  first comment line = patch title) and sets version field 4 to the `VERSION` file (`--level`; one-off
+  `make patched REV=n`, 0..16383): stock 1.3.1563.1717 -> 1.3.1563.<n>
   (image `g_fw_version` + SysEx header; boot screen shows it, device inquiry only carries 1.3.1563)
 - `analysis/symbols.txt` – names we discover; rebuilt into the ELF by `make`
 - `analysis/NOTES.md` – findings log (keep updated)
 - `build/` – generated (gitignored): `.bin`, `.bin.json`, `.elf`, `.s`, `patched.syx`, `cfw.elf`, `cfw.map`
 - `make` / `make verify` / `make disasm` / `make patched` / `make inquiry` / `make upload` / `make restore` /
-  `make cfw` / `make cfw-test` / `make clean`
+  `make cfw` / `make cfw-test` / `make release` (build/launchkeyminimk4-cfw-<version>.zip = patched .syx + uploader.html) / `make clean`
 - Python runs through **uv** (`pyproject.toml`, `uv.lock`, `.python-version` = 3.12): `uv run python tools/...`;
   add deps with `uv add` (commit both files). Tools are plain scripts (`[tool.uv] package = false`).
 - `tools/send_syx.py` – MIDI upload with per-block ack handshake; `--inquiry`, `--list`, `--dry-run`.
   Prints the file's version and which `patches/*.patch` are present in the image (checked byte-wise).
+- `tools/uploader.html` – Web MIDI uploader (Chrome / Edge, opened locally) for users without the CLI: port of
+  lkfw.py checks + send_syx.py handshake; the parser lives in `<script id="lkfw">` (pure, node-loadable).
 - `tools/bitmap.py` – `list` / `export <id>` / `patch <id> art.txt [--title]` for OLED images (image table
   `g_image_table` 0x0802DF94); `assets/boot_logo.txt` (image 0x27F) -> `patches/010-boot-logo.patch` via make.
 - `cfw/` – C code for the free flash after the image (`cfw/cfw.ld`: code from 0x080372B4, 256 B RAM @0x2000F520,

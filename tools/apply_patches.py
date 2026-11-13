@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Apply byte patches to a raw firmware image and stamp the patch level into the version.
 
-Usage: apply_patches.py in.bin out.bin [--meta in.bin.json] patches/*.patch
+Usage: apply_patches.py in.bin out.bin [--meta in.bin.json] [--level N] patches/*.patch
 
 Patch file format (one edit per line, '#' starts a comment):
 
@@ -16,8 +16,8 @@ wrong firmware version. The first comment line of a patch file is its title.
 
 Version: the firmware version is major.minor.build.extra (1.3.1563.1717 for the
 stock image, u32s at g_fw_version 0x080081F0, also 6 bytes in the SysEx header).
-The 4th field is replaced by the number of applied patches, so every added patch
-bumps it: boot screen shows "Ver: 1.3.1563.<n>". With --meta, out.bin.json is
+The 4th field is replaced by --level (make passes the VERSION file; default: the
+number of applied patches): boot screen shows "Ver: 1.3.1563.<n>". With --meta, out.bin.json is
 written (header version bytes updated + patch list) for `lkfw.py pack --meta`.
 """
 import argparse
@@ -96,12 +96,16 @@ def main():
     ap.add_argument("out")
     ap.add_argument("patches", nargs="*", type=Path)
     ap.add_argument("--meta", type=Path, help="stock .bin.json; writes <out>.json with the new version")
+    ap.add_argument("--level", type=int, help="version field 4, 0..16383 (default: number of patches)")
     a = ap.parse_args()
+    level = len(a.patches) if a.level is None else a.level
+    if not 0 <= level <= 0x3FFF:   # two 7-bit bytes in the SysEx header (version_bytes)
+        sys.exit(f"--level {level} out of range 0..16383")
 
     image = bytearray(Path(a.inp).read_bytes())
     for p in a.patches:
         apply(image, p)
-    v = stamp_version(image, len(a.patches))
+    v = stamp_version(image, level)
     Path(a.out).write_bytes(image)
     print(f"{a.out}: {len(image)} bytes, version {'.'.join(map(str, v))}")
 

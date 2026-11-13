@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Launchkey Uploader</title>
+<!--
+  Firmware uploader for the Launchkey Mini MK4 (custom firmware workbench), Web MIDI version of
+  tools/send_syx.py. Open this file locally in Chrome or Edge (Mac / Windows); Safari has no Web MIDI.
+  Same checks (tools/lkfw.py: container format, CRC-32/MPEG-2, size) and the same upload handshake:
+  0x71 start, 0x7C header -> wait for the device's "ready" (00 72 n, after "Press to Upgrade") ->
+  one 0x72 block per ack -> 0x73 final block -> status reply.
+-->
+<style>
+  :root {
+    --bg: #f6f6f4; --card: #ffffff; --fg: #1d1d1b; --muted: #6b6b66; --line: #dcdcd6;
+    --accent: #1f6feb; --ok: #1a7f37; --warn: #9a6700; --err: #cf222e; --bar: #e6e6e1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151514; --card: #1f1f1d; --fg: #ededea; --muted: #a0a09a; --line: #34342f;
+      --accent: #4c8dff; --ok: #3fb950; --warn: #d29922; --err: #f85149; --bar: #2c2c28;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  section {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px; margin-bottom: 16px;
+  }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  #drop {
+    border: 2px dashed var(--line); border-radius: 8px; padding: 18px; text-align: center;
+    color: var(--muted); cursor: pointer;
+  }
+  #drop.over { border-color: var(--accent); color: var(--fg); }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 12px 0 0; }
+  dt { color: var(--muted); }
+  dd { margin: 0; font-variant-numeric: tabular-nums; word-break: break-all; }
+  button, select {
+    font: inherit; border-radius: 6px; border: 1px solid var(--line); background: var(--card);
+    color: var(--fg); padding: 7px 14px; cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .45; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  select { flex: 1; min-width: 0; }
+  .msg { margin-top: 10px; }
+  .ok { color: var(--ok); } .warn { color: var(--warn); } .err { color: var(--err); }
+  progress { width: 100%; height: 10px; margin-top: 12px; accent-color: var(--accent); }
+  .note { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Launchkey Mini MK4 uploader</h1>
+  <p class="sub">Uploads a firmware <code>.syx</code> over USB MIDI. Chrome or Edge on Mac / Windows.</p>
+
+  <section>
+    <h2>1 · Firmware file</h2>
+    <div id="drop">Drop a <code>.syx</code> file here or click to choose</div>
+    <input id="file" type="file" accept=".syx" class="hidden">
+    <dl id="info" class="hidden"></dl>
+    <div id="fileMsg" class="msg"></div>
+  </section>
+
+  <section>
+    <h2>2 · Device</h2>
+    <div class="row">
+      <select id="port" disabled><option>no device</option></select>
+      <button id="check">Find device</button>
+    </div>
+    <div id="devMsg" class="msg"></div>
+    <p class="note">Quit every app that uses the Launchkey first (DAWs, Novation Components, other browser
+      tabs with MIDI). Allow MIDI / SysEx access when the browser asks.</p>
+  </section>
+
+  <section>
+    <h2>3 · Upload</h2>
+    <div class="row">
+      <button id="upload" class="primary" disabled>Upload</button>
+      <button id="cancel" class="hidden">Cancel</button>
+    </div>
+    <progress id="prog" class="hidden" max="1" value="0"></progress>
+    <div id="upMsg" class="msg"></div>
+    <p class="note">Use at your own risk. Don't unplug the device or close this tab during the upload
+      (about 30 s). The original firmware can always be restored with Novation Components.</p>
+  </section>
+</main>
+
+<!-- Container format and checks: a port of tools/lkfw.py. Pure functions, no DOM (testable in node). -->
+<script id="lkfw">
+const SYSEX_HDR = [0xF0, 0x00, 0x20, 0x29, 0x00];
+const CMD_START = 0x71, CMD_DATA = 0x72, CMD_LAST = 0x73, CMD_INFO = 0x7C;
+const MAX_IMAGE = 0x38000;
+
+function crc32mpeg2(data) {
+  let crc = 0xFFFFFFFF;
+  for (const b of data) {
+    crc = (crc ^ (b << 24)) >>> 0;
+    for (let i = 0; i < 8; i++)
+      crc = crc & 0x80000000 ? ((crc << 1) ^ 0x04C11DB7) >>> 0 : (crc << 1) >>> 0;
+  }
+  return crc;
+}
+
+function splitSysex(blob) {
+  const msgs = [];
+  let start = -1;
+  for (let i = 0; i < blob.length; i++) {
+    if (blob[i] === 0xF0) start = i;
+    else if (blob[i] === 0xF7 && start >= 0) { msgs.push(blob.subarray(start, i + 1)); start = -1; }
+  }
+  return msgs;
+}
+
+/* 7-bit payload = MSB-first bitstream; the bits after the last whole byte must be zero. */
+function unpack7(p) {
+  const nbytes = (p.length * 7) >> 3, out = new Uint8Array(nbytes);
+  let acc = 0, bits = 0, o = 0;
+  for (const b of p) {
+    acc = (acc << 7) | b; bits += 7;
+    while (bits >= 8 && o < nbytes) { bits -= 8; out[o++] = (acc >> bits) & 0xFF; acc &= (1 << bits) - 1; }
+  }
+  if (acc) throw new Error("non-zero padding bits in a data message");
+  return out;
+}
+
+const nibbles = n => n.reduce((v, x) => (v * 16 + (x & 0xF)) >>> 0, 0);
+
+/* Returns {msgs, image, size, crc, version}; throws on anything the device would reject. */
+function parseFirmware(blob) {
+  const msgs = splitSysex(blob);
+  if (!msgs.length) throw new Error("no SysEx messages in this file");
+  let startPayload = null, size = null, crc = null, last = null;
+  const data = [];
+  for (const m of msgs) {
+    if (!SYSEX_HDR.every((b, i) => m[i] === b)) throw new Error("not a Novation firmware file");
+    const cmd = m[5], p = m.subarray(6, m.length - 1);
+    if (cmd === CMD_START) startPayload = p;
+    else if (cmd === CMD_INFO) { size = nibbles([...p.subarray(p.length - 16, p.length - 8)]); crc = nibbles([...p.subarray(p.length - 8)]); }
+    else if (cmd === CMD_DATA) data.push(unpack7(p));
+    else if (cmd === CMD_LAST) last = unpack7(p);
+    else throw new Error("unknown message 0x" + cmd.toString(16));
+  }
+  if (msgs[0][5] !== CMD_START || msgs[1][5] !== CMD_INFO || msgs[msgs.length - 1][5] !== CMD_LAST)
+    throw new Error("unexpected message order");
+  if (!startPayload || startPayload[0] !== 0x02 || startPayload[1] !== 0x13 || startPayload.length < 8)
+    throw new Error("not a Launchkey Mini MK4 firmware file");
+  if (size === null || last === null) throw new Error("incomplete file");
+  if (size > MAX_IMAGE) throw new Error("image larger than 0x38000 bytes – the device rejects that");
+  const full = new Uint8Array(last.length + data.reduce((n, d) => n + d.length, 0));
+  full.set(last, 0);
+  let off = last.length;
+  for (const d of data) { full.set(d, off); off += d.length; }
+  if (full.length < size) throw new Error("file is shorter than its header says");
+  const image = full.subarray(0, size), calc = crc32mpeg2(image);
+  if (calc !== crc)
+    throw new Error(`CRC mismatch: header 0x${crc.toString(16)}, computed 0x${calc.toString(16)}`);
+  const v = startPayload.subarray(2, 8);
+  const version = `${v[0]}.${v[1]}.${v[2] << 7 | v[3]}.${v[4] << 7 | v[5]}`;
+  return { msgs, image, size, crc, version, blocks: data.length };
+}
+
+/* Device replies (Web MIDI data includes F0 .. F7). */
+const isAck = (d, cmd) => d.length >= 6 && d[0] === 0xF0 && d[1] === 0x00 && d[2] === 0x20 && d[3] === 0x29 && d[4] === 0x00 && d[5] === cmd;
+const ackValue = d => d[6] | d[7] << 7 | d[8] << 14;
+const isInquiryReply = d => d.length >= 16 && d[1] === 0x7E && d[3] === 0x06 && d[4] === 0x02;
+
+/* Pair Launchkey in/out ports by name (macOS "… MIDI In" / "… MIDI Out", Windows "MIDIIN2 (…)" /
+ * "MIDIOUT2 (…)"); the "MIDI" interface is preferred over "DAW", as in send_syx.py. */
+function portKey(name) {
+  return name.replace(/MIDI(IN|OUT)(\d*)/i, "MIDI$2").replace(/\s+(In|Out)$/i, "").trim();
+}
+function pairPorts(inputs, outputs) {
+  const pairs = [];
+  for (const i of inputs) {
+    if (!/launchkey mini mk4/i.test(i.name)) continue;
+    const o = outputs.find(o => portKey(o.name) === portKey(i.name));
+    if (o) pairs.push({ name: portKey(i.name), input: i, output: o });
+  }
+  const score = p => (/ MIDI( |$)/.test(p.name + " ") ? 0 : /DAW/i.test(p.name) ? 2 : 1);
+  return pairs.sort((a, b) => score(a) - score(b));
+}
+
+if (typeof module !== "undefined") module.exports = { crc32mpeg2, unpack7, parseFirmware, portKey, pairPorts };
+</script>
+
+<script>
+const $ = id => document.getElementById(id);
+let fw = null, midi = null, pairs = [], busy = false, cancelled = false;
+
+function say(el, text, cls = "") { $(el).textContent = text; $(el).className = "msg " + cls; }
+function updateButtons() {
+  $("upload").disabled = busy || !fw || !pairs.length;
+  $("check").disabled = busy;
+  $("port").disabled = busy || pairs.length < 2;
+}
+
+/* ---- file ---- */
+async function loadFile(file) {
+  fw = null;
+  $("info").classList.add("hidden");
+  try {
+    const blob = new Uint8Array(await file.arrayBuffer());
+    fw = parseFirmware(blob);
+    const rows = [["File", file.name], ["Version", fw.version], ["Image", `${fw.size.toLocaleString()} bytes`],
+                  ["CRC", "0x" + fw.crc.toString(16).padStart(8, "0") + " ✓"], ["Blocks", fw.blocks]];
+    $("info").replaceChildren(...rows.flatMap(([k, v]) => {
+      const dt = document.createElement("dt"), dd = document.createElement("dd");
+      dt.textContent = k; dd.textContent = v; return [dt, dd];
+    }));
+    $("info").classList.remove("hidden");
+    say("fileMsg", fw.version.endsWith(".1717") ? "Stock Novation firmware." : "File OK.", "ok");
+  } catch (e) {
+    say("fileMsg", "Can't use this file: " + e.message, "err");
+  }
+  updateButtons();
+}
+$("drop").onclick = () => $("file").click();
+$("file").onchange = e => e.target.files[0] && loadFile(e.target.files[0]);
+$("drop").ondragover = e => { e.preventDefault(); $("drop").classList.add("over"); };
+$("drop").ondragleave = () => $("drop").classList.remove("over");
+$("drop").ondrop = e => { e.preventDefault(); $("drop").classList.remove("over"); e.dataTransfer.files[0] && loadFile(e.dataTransfer.files[0]); };
+
+/* ---- MIDI ---- */
+let listener = null;     /* the pending waitSysex */
+function onMessage(e) { if (listener) listener(e.data); }
+
+function selected() { return pairs[$("port").selectedIndex]; }
+
+/* Resolves with the first SysEx reply matching pred, or null after timeout ms (or on cancel). */
+function waitSysex(pred, timeout) {
+  return new Promise(resolve => {
+    const done = d => { clearTimeout(t); clearInterval(c); listener = null; resolve(d); };
+    const t = setTimeout(() => done(null), timeout);
+    const c = setInterval(() => cancelled && done(null), 100);
+    listener = d => pred(d) && done(d);
+  });
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function attach() {
+  for (const p of pairs) p.input.onmidimessage = null;
+  const p = selected();
+  if (p) p.input.onmidimessage = onMessage;
+}
+
+async function findDevice() {
+  try {
+    midi = midi || await navigator.requestMIDIAccess({ sysex: true });
+  } catch (e) {
+    say("devMsg", "No MIDI access: allow MIDI / SysEx for this page (Chrome or Edge needed).", "err");
+    return;
+  }
+  pairs = pairPorts([...midi.inputs.values()], [...midi.outputs.values()]);
+  $("port").replaceChildren(...(pairs.length ? pairs : [{ name: "no device" }]).map(p => {
+    const o = document.createElement("option"); o.textContent = p.name; return o;
+  }));
+  updateButtons();
+  if (!pairs.length) { say("devMsg", "No Launchkey Mini MK4 found. Is it connected and not used by another app?", "err"); return; }
+  await inquiry();
+}
+
+async function inquiry() {
+  attach();
+  const p = selected();
+  p.output.send([0xF0, 0x7E, 0x7F, 0x06, 0x01, 0xF7]);
+  const d = await waitSysex(isInquiryReply, 2000);
+  if (!d) { say("devMsg", `Found "${p.name}", but it doesn't answer. Try the other port or reconnect it.`, "warn"); return; }
+  const fam = d[8] << 8 | d[9];
+  const model = { 0x4101: "Launchkey Mini MK4 25", 0x4201: "Launchkey Mini MK4 37" }[fam] || "family 0x" + fam.toString(16);
+  say("devMsg", `${model}, firmware ${d[12]}.${d[13]} build ${d[14] << 7 | d[15]}`, "ok");
+}
+
+$("check").onclick = findDevice;
+$("port").onchange = inquiry;
+
+/* ---- upload (same handshake as send_syx.py) ---- */
+async function upload() {
+  const p = selected();
+  if (!confirm(`Flash firmware ${fw.version} to "${p.name}"?\nDon't unplug the device during the upload.`)) return;
+  busy = true; cancelled = false; updateButtons();
+  window.onbeforeunload = () => "Upload in progress";
+  attach();
+  const prog = $("prog"), data = fw.msgs.filter(m => m[5] === CMD_DATA), total = data.length;
+  prog.classList.add("hidden");
+  try {
+    p.output.send(fw.msgs[0]);
+    await sleep(100);
+    p.output.send(fw.msgs[1]);
+    await sleep(100);
+    say("upMsg", "Waiting for the device… if the display shows “Press to Upgrade”, press it now.", "warn");
+    $("cancel").classList.remove("hidden");
+    let d = await waitSysex(r => isAck(r, CMD_DATA), 120000);
+    $("cancel").classList.add("hidden");
+    if (!d) throw new Error(cancelled ? "Cancelled – nothing was written." :
+      "The device didn't accept the update within 120 s – nothing was written. Check the port and try again.");
+    let expected = ackValue(d) + 1;
+    const t0 = performance.now();
+    prog.max = total; prog.value = 0; prog.classList.remove("hidden");
+    for (let i = 0; i < total; i++) {
+      p.output.send(data[i]);
+      d = await waitSysex(r => isAck(r, CMD_DATA) || isAck(r, CMD_LAST), 3000);
+      if (!d || isAck(d, CMD_LAST) || ackValue(d) !== expected)
+        throw new Error(`Upload stopped at block ${i + 1} of ${total}. Don't unplug the device – upload again ` +
+                        "(or restore the original firmware with Novation Components) before power-cycling it.");
+      expected++;
+      if ((i + 1) % 50 === 0 || i + 1 === total) {
+        prog.value = i + 1;
+        const rate = (i + 1) / ((performance.now() - t0) / 1000);
+        say("upMsg", `Uploading… ${i + 1} / ${total} blocks (${rate.toFixed(0)}/s)`);
+      }
+    }
+    p.output.send(fw.msgs[fw.msgs.length - 1]);
+    d = await waitSysex(r => isAck(r, CMD_LAST), 10000);
+    if (d && d[6] === 0x7F)
+      say("upMsg", "Done – the device restarts with the new firmware. Press “Find device” in a few seconds to check.", "ok");
+    else if (d)
+      say("upMsg", "Upload finished, but the device reported status 0x" + d[6].toString(16) + ". Check its display.", "warn");
+    else
+      say("upMsg", "Final block sent, no status reply – check the device display.", "warn");
+  } catch (e) {
+    say("upMsg", e.message, "err");
+  } finally {
+    busy = false; window.onbeforeunload = null;
+    $("cancel").classList.add("hidden");
+    updateButtons();
+  }
+}
+$("upload").onclick = upload;
+$("cancel").onclick = () => { cancelled = true; };
+</script>
+</body>
+</html>

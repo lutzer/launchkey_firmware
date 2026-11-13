@@ -1,7 +1,6 @@
 # Launchkey Mini MK4 Custom Firmware
 
-Custom firmware for the **Novation Launchkey Mini MK4** (25 and 37 keys), built by patching the official
-firmware version 1.3 build 1563. It adds:
+Custom firmware for the **Novation Launchkey Mini MK4** (25 and 37 keys), built by patching the official firmware version 1.3 build 1563. It adds:
 
 - **Turing Machine mode** – a generative sequencer inspired by the Music Thing Turing Machine, on pad mode
   Custom 4
@@ -23,8 +22,7 @@ firmware version 1.3 build 1563. It adds:
   Only without a DAW connection (connecting a DAW cancels the arm). The window is clock time, not arp steps: the Turing Machine starts on its
   first step, the arp keeps its own phase, so an arp note can fall right at the cut
 
-> ⚠️ **Use at your own risk.** Flashing modified firmware can leave the device unusable and may void your
-> warranty. Read [Safety & recovery](#safety--recovery) before your first upload.
+> ⚠️ **Use at your own risk.** Flashing the device with the custom firmware doesnt change its bootloader, so you can revert the device back to the stock firmware, using novations component software. However flashing modified firmware can leave the device unusable and may void your warranty. Read [Safety & recovery](#safety--recovery) before your first upload.
 
 ---
 
@@ -87,7 +85,23 @@ Turning an encoder shows its value on the display.
 
 ---
 
-## Requirements
+## Installation
+
+The firmware can be either installed through a browser tool or following the proceducre writte under [Development](#development).
+
+To upload a custom firmware release, download the release fromt the releases page and unzip it.
+
+1. open `uploader.html` in **Chrome or Edge** (Mac or Windows; Safari has no Web MIDI).
+2. Choose the `.syx` file. The page checks it (format, CRC, size) and shows its version.
+3. Press **Find device** and allow MIDI / SysEx access when the browser asks. The page shows the model and the firmware version on the device.
+4. Press **Upload**, then **"Press to Upgrade"** on the device. The upload takes about 30 seconds.
+
+Connect the launchkey directly, quit other MIDI apps, don't unplug or close the tab during the upload. On Windows the device shows up as two ports. If the device doesn't show "Press to
+Upgrade", cancel, pick the other port and upload again.  For reinstalling the stock firmware use Novation Components.
+
+## Development
+
+### Requirements
 
 | Tool | Install |
 |---|---|
@@ -103,13 +117,14 @@ uv sync
 
 ---
 
-## Build and flash
+### Build and flash
 
 ```sh
 make inquiry      # check the connection: "Launchkey Mini MK4 25, firmware 1.3 build 1563"
 make patched      # build build/patched.syx (all checks must pass)
 make upload       # flash it (asks for confirmation first)
 make restore      # flash the original Novation firmware again
+make release      # zip for sharing: launchkeyminimk4-cfw-<version>.syx + uploader.html
 ```
 
 `make upload` lists the version and the features (patches) contained in the file before asking. Then:
@@ -117,7 +132,9 @@ make restore      # flash the original Novation firmware again
 1. The device may show **"Press to Upgrade"** – press it within the timeout. The uploader waits 120 seconds
    (`--confirm-timeout 300` for longer).
 2. The upload takes about 30 seconds and the device restarts by itself.
-3. The boot screen shows `Ver: 1.3.1563.<n>+cfw`, where `<n>` is the number of patches.
+3. The boot screen shows `Ver: 1.3.1563.<n>+cfw`, where `<n>` is the number in the `VERSION` file. Bump it
+   for a release, or build once with another number: `make patched REV=7`. Only the last number is yours;
+   1.3.1563 stays as Novation's.
 
 Before uploading:
 
@@ -140,12 +157,7 @@ Uploader options (`uv run python tools/send_syx.py build/patched.syx [options]`)
 
 ---
 
-## Customising the boot logo
 
-`assets/boot_logo.txt` is the 128×48 boot logo as ASCII art (`#` = pixel on, `.` = off). Edit it without
-changing its size, then `make patched`. The original logo is in `assets/boot_logo.orig.txt`.
-
----
 
 ## Safety & recovery
 
