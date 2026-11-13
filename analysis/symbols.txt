@@ -103,6 +103,7 @@
 0x0802b362 feat_set_value
 0x0803050c midi_cc_feature_set
 0x08030958 midi_realtime_handler
+0x0803112e sysex_version_reply func
 0x08013c12 clock_midi_start
 0x08013c1a clock_midi_stop
 0x08013c24 clock_midi_continue
@@ -152,6 +153,7 @@
 0x08022752 transport_daw_changed
 0x2000f480 g_transport                   data
 0x08022a88 shift_overlay_leds
+0x08022eb2 ui_select_layout func
 0x08022a5c shift_led
 0x0802a612 led_set
 0x0802b0d2 shift_leds_tail

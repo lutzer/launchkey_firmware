@@ -20,6 +20,7 @@ PROVIDE(disp_set_screen    = 0x080185C0 | 1);
 PROVIDE(disp_text          = 0x0801867C | 1);
 PROVIDE(layout_name_text_a = 0x0802AEB8 | 1);
 PROVIDE(layout_name_text_b = 0x0802AECA | 1);
+PROVIDE(ui_select_layout   = 0x08022EB2 | 1);
 PROVIDE(ui_popup_begin     = 0x08024F5E | 1);
 
 /* input listeners: io_listener lists A..D (max 8 each), relative-input lists (max 4 each) */

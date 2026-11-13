@@ -47,6 +47,9 @@ void disp_text(uint32_t screen, uint32_t field, const char *str);
  * (type 1 = pads). _a is used by the mode popups, _b by the home screen. */
 void layout_name_text_a(uint32_t screen, uint32_t field, uint32_t index, uint32_t type);
 void layout_name_text_b(uint32_t screen, uint32_t field, uint32_t index, uint32_t type);
+/* Select a layout like the Shift overlay's mode pads do (layout_select + mode popup); the handle
+ * {index, type} is passed by value in r0/r1. Pad mode index = feature param 0x1D value. */
+void ui_select_layout(uint32_t index, uint32_t type);
 void ui_popup_begin(void);
 
 /* Input listeners (all called from the main loop). io lists: control id < 0x78. */

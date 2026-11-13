@@ -20,8 +20,13 @@
 - [x] ID bytes `01 03 0c 1b 0d 35` = firmware version: 1.3, build 1563 (0x0c<<7|0x1b), 1717 (0x0d<<7|0x35).
       Same values as u32s at 0x080081F0 (`g_fw_version`). Still unknown whether the bootloader checks them.
       App side: boot screen prints all 4 fields; inquiry reply (0x080115B6) sends major, minor, build only;
-      0x7C header version is just stored in the update state (0x0801B92C), not compared. Patched builds put the
-      `VERSION` file's number in field 4 (apply_patches.py --level, Makefile REV).
+      0x7C header version is just stored in the update state (0x0801B92C), not compared.
+      **SysEx 0x70 version query** (`sysex_version_reply` 0x0803112E): replies with the bootloader version
+      (u32s at 0x080001F0) and then **all 4** app fields from `g_fw_version` (literal 0x080311AC). Novation
+      Components compares that with its 1.3.1563.1717 and offers an "update" on any mismatch (seen with field 4
+      = 6, 2026-11-13). So patched builds keep `g_fw_version` stock and put the `VERSION` number only in the
+      SysEx header (apply_patches.py --level) and on the boot screen (cfw_boot_version, `-DCFW_REV` from the
+      Makefile REV via build/cfw/cfw_rev.h).
 - [x] Does the bootloader accept an image larger than the original (code-cave growth)? Yes (see above).
 - [ ] MIDI input dispatch / SysEx handler (entry point for new functions).
 - [ ] Recovery: bootloader mode button combo, in case a patched image doesn't boot.
@@ -259,6 +264,13 @@
 - `ui_popup_begin` 0x08024F5E synchronously runs two callback lists (0x2000EDF0 / 0x2000ED88, max 12 each); they
   repaint button LEDs, e.g. ">" went dark after the enable popup -> cfw redraws its button LEDs after it.
 - Shift + encoder: the mode keeps the encoders (io events -> TM_ENC_ONLY, relin consumed) and only shows the value.
+- **Shift + top pad (encoder mode select) leaves the mode:** the Shift overlay's press handler (0x08022F10..)
+  builds a layout handle {index, type} (pads: type 1, bottom pads 1..8 -> index 2, (chord, 0x0801C738), 4, 0xE,
+  5..8; encoders: type 2, top pads -> 2..9) and calls `ui_select_layout(index, type)` 0x08022EB2 (handle by value
+  in r0/r1: layout_select + mode popup). tm_io_event sets `st.leave` on a Shift + top-pad press while active;
+  tm_mode_poll (same main-loop pass, after the encoder switch) calls ui_select_layout(prev_pad_mode, 1).
+  prev_pad_mode = last 0x1D value != 8 (default 2 when booted into the mode). The pad-mode popup replaces the
+  encoder-mode one.
 - Menus: controls captured by a menu (ctl_is_blocked) go to the menu - except after (re)selecting pad Custom 4:
   Scale/Arp screens keep encoders captured after leaving them, so selecting the mode sets a priority flag
   that wins over captures until any other button (not Shift/pads/encoders/the four mode buttons) is pressed.

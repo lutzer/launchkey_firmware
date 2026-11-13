@@ -25,7 +25,7 @@ OBJDUMP  := xcrun llvm-objdump
 
 # cfw: C code linked into the free flash after the stock image (cfw/cfw.ld)
 ARMCC    := xcrun clang -target thumbv7em-none-eabi -mcpu=cortex-m4 -mthumb -mfloat-abi=soft
-ARMFLAGS := -std=c11 -Os -fomit-frame-pointer -ffreestanding -fno-builtin -ffunction-sections -fdata-sections -Wall -Wextra -Werror
+ARMFLAGS := -std=c11 -Os -fomit-frame-pointer -ffreestanding -fno-builtin -ffunction-sections -fdata-sections -Wall -Wextra -Werror -Ibuild/cfw
 LLD      := ld.lld
 CFW_SRC  := $(wildcard cfw/*.c)
 CFW_OBJ  := $(patsubst cfw/%.c,build/cfw/%.o,$(CFW_SRC))
@@ -54,6 +54,13 @@ build/cfw/%.o: cfw/%.c $(wildcard cfw/*.h) | build
 	@mkdir -p build/cfw
 	$(ARMCC) $(ARMFLAGS) -c $< -o $@
 
+# CFW_REV = REV for the boot screen; the header is rewritten only when REV changes
+build/cfw/cfw_rev.h: FORCE | build
+	@mkdir -p build/cfw
+	@echo '#define CFW_REV $(REV)' | cmp -s - $@ || echo '#define CFW_REV $(REV)' > $@
+
+build/cfw/cfw_init.o: build/cfw/cfw_rev.h
+
 build/cfw.elf: $(CFW_OBJ) cfw/cfw.ld cfw/fw_api.ld
 	$(LLD) -T cfw/cfw.ld -L cfw --gc-sections -e cfw_init $(CFW_HOOK_SYMS) -Map build/cfw.map -o $@ $(CFW_OBJ)
 
@@ -70,7 +77,8 @@ build/test_tm_core: cfw/test/test_tm_core.c cfw/tm_core.c cfw/tm_core.h | build
 cfw-test: build/test_tm_core
 	$<
 
-# Version field 4 = REV (VERSION file): stock 1.3.1563.1717 -> 1.3.1563.<REV>. Always re-applied (FORCE,
+# Version field 4 = REV (VERSION file): stock 1.3.1563.1717 -> 1.3.1563.<REV> in the SysEx header and on the
+# boot screen (cfw); the image keeps 1717 so Novation Components sees stock. Always re-applied (FORCE,
 # ~1 s), so a changed VERSION or a REV= override can never be skipped; `patched` repacks every time anyway.
 build/patched.bin: $(BIN) $(PATCHES) tools/apply_patches.py FORCE
 	$(PY) tools/apply_patches.py $(BIN) $@ --meta $(BIN).json --level $(REV) $(PATCHES)

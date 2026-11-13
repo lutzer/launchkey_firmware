@@ -97,6 +97,9 @@ when the heads' combination is 1:
   enable/disable is.
 - **Shift still works:** Shift + pads selects pad and encoder modes as usual, and menus (Settings, Scale, Arp)
   get the encoders while they are open. If a Scale or Arp screen keeps the encoders, select pad Custom 4 again.
+- **Selecting an encoder mode leaves Turing Machine mode:** Shift + a top-row pad switches the pads back to the
+  pad mode you used before Turing Machine, so the encoders work in the chosen encoder mode. The sequencer keeps
+  running in the background.
 - **Shift:** the pad that selects Turing Machine mode (8th pad, bottom row) is **bright green** while the
   sequencer is enabled and **dark green** while it is disabled (muted).
 - **Shift + turn an encoder** shows the current value of that Turing Machine parameter without changing it.
@@ -151,6 +154,8 @@ make release      # zip for sharing: launchkeyminimk4-cfw-<version>.syx + upload
 3. The boot screen shows `Ver: 1.3.1563.<n>+cfw`, where `<n>` is the number in the `VERSION` file. Bump it
    for a release, or build once with another number: `make patched REV=7`. Only the last number is yours;
    1.3.1563 stays as Novation's.
+   Towards the computer the device still reports the stock version 1.3.1563.1717, so Novation Components
+   works with the custom firmware (custom modes, settings) and doesn't ask for an update.
 
 Before uploading:
 

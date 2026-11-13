@@ -21,6 +21,8 @@
  *   encoders 1..8      probability, length, rate, range, gate length, trigger heads, velocity
  *                      depth, velocity head (moves the register window velocity is read from,
  *                      see tm_velocity); mapping and ranges: params[] / enc_param[]
+ *   Shift + top pad    (encoder mode select) also leaves the mode for the pad mode used before
+ *                      it, so the encoders work in the chosen encoder mode
  * MIDI transport (also while another pad mode is shown or disabled): Start = back to the first
  * step, which plays on the next clock tick (the downbeat), Continue = resume, Stop = pause.
  * Outside the mode the LEDs and popups are left to the stock firmware.
@@ -47,6 +49,8 @@
 #define FEAT_PAD_MODE     0x1D
 #define CTL_SHIFT         25
 #define PAD_SELECT        15          /* Shift + this pad selects pad Custom 4 */
+#define LAYOUT_PADS       1           /* layout handle type */
+#define PAD_MODE_DEFAULT  2           /* pad mode of Shift + bottom pad 1 */
 
 #define PAD_COUNT         16
 #define PAD_ROW           TM_PADS
@@ -138,6 +142,8 @@ static struct {
     uint8_t run_steps;       /* one-shot run length index 1..RUN_STEPS_MAX (run_len; encoder 1 while armed) */
     uint8_t run_done;        /* a run ended by itself (tm_run_done) */
     uint32_t run_start;      /* clock tick the run started on */
+    uint8_t prev_pad_mode;   /* last pad mode (0x1D) other than this one */
+    uint8_t leave;           /* Shift + top pad (encoder mode select): back to prev_pad_mode */
 } st;
 
 /* MIDI transport recorded by tm_transport, applied in tm_mode_poll */
@@ -726,6 +732,8 @@ int tm_io_event(int list, uint32_t id, uint32_t value)
     uint32_t bit = 1u << slot;
     if (list == TM_IO_PRESS) {  /* the press decides who owns the control until its release */
         int take;
+        if (st.shift && st.active && id < PAD_ROW)
+            st.leave = 1;       /* the Shift overlay selects the encoder mode; tm_mode_poll leaves */
         if (run_enc(id))
             take = 1;
         else if (st.shift)      /* Shift + encoder = show value; the Shift overlay's capture doesn't count */
@@ -776,6 +784,8 @@ void tm_feat_changed(uint32_t id, uint32_t value)
 {
     switch (id) {
     case FEAT_PAD_MODE:
+        if (value != TM_PAD_MODE)
+            st.prev_pad_mode = (uint8_t)value;
         set_active(value == TM_PAD_MODE);
         if (value == TM_PAD_MODE) {     /* (re)selected: take the controls back from any menu */
             st.priority = 1;
@@ -821,6 +831,7 @@ void tm_mode_init(void)
     st.note = -1;
     st.enabled = 1;
     st.run_steps = RUN_STEPS_DEFAULT;
+    st.prev_pad_mode = PAD_MODE_DEFAULT;
     /* Define the persistent params at feature-init time like the stock features do, so
      * confstore restores them (and re-applies them through the listener) after loading. */
     for (int p = 0; p < P_COUNT; p++)
@@ -836,7 +847,10 @@ void tm_mode_poll(void)
     if (!started) {
         started = 1;
         param_sync();
-        set_active(feat_get(FEAT_PAD_MODE) == TM_PAD_MODE);
+        uint32_t mode = feat_get(FEAT_PAD_MODE);
+        if (mode != TM_PAD_MODE)
+            st.prev_pad_mode = (uint8_t)mode;
+        set_active(mode == TM_PAD_MODE);
     }
     uint8_t event = transport_event;
     if (event) {
@@ -856,6 +870,11 @@ void tm_mode_poll(void)
     }
     if (!st.enabled)            /* muted: release a note sounding when it was disabled */
         note_off();
+    if (st.leave) {             /* after the encoder mode switch (same main loop pass) */
+        st.leave = 0;
+        if (st.active)
+            ui_select_layout(st.prev_pad_mode, LAYOUT_PADS);
+    }
     if (!st.active)
         return;
     if (st.popup_pending) {

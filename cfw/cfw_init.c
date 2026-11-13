@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include "fw_api.h"
 #include "tm_mode.h"
+#include "cfw_rev.h"
 
 extern uint32_t __cfw_bss_start[], __cfw_bss_end[];
 
@@ -31,10 +32,12 @@ void cfw_poll(void)
     play_led_poll();
 }
 
-/* Hook: replaces `bl fmt_version` in ui_show_boot_screen (0x08016E42). Visible proof that cave code runs. */
+/* Hook: replaces `bl fmt_version` in ui_show_boot_screen (0x08016E42). Visible proof that cave code runs.
+ * g_fw_version keeps the stock 4th field (Components compares it, SysEx 0x70 reply); show CFW_REV instead. */
 uint32_t cfw_boot_version(char *buf, uint32_t pos, uint32_t size, const uint32_t *ver)
 {
-    pos = fmt_version(buf, pos, size, ver);
+    uint32_t v[4] = { ver[0], ver[1], ver[2], CFW_REV };
+    pos = fmt_version(buf, pos, size, v);
     return str_append(buf, pos, size, "+cfw");
 }
 

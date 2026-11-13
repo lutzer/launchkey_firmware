@@ -11,8 +11,9 @@ details belong here and in `analysis/NOTES.md`.
 - `tools/mkelf.py` – wraps the raw image in an ARM ELF (base 0x08008000, Thumb, vector + `analysis/symbols.txt` names)
 - `tools/apply_patches.py` – applies `patches/*.patch` (`<addr> <orig hex|-> <new hex>`, orig bytes are verified;
   first comment line = patch title) and sets version field 4 to the `VERSION` file (`--level`; one-off
-  `make patched REV=n`, 0..16383): stock 1.3.1563.1717 -> 1.3.1563.<n>
-  (image `g_fw_version` + SysEx header; boot screen shows it, device inquiry only carries 1.3.1563)
+  `make patched REV=n`, 0..16383): stock 1.3.1563.1717 -> 1.3.1563.<n> in the SysEx header only; the boot
+  screen shows it via cfw (`CFW_REV`). Image `g_fw_version` must stay stock: the SysEx 0x70 version reply
+  carries all 4 fields and Novation Components demands an "update" on a mismatch
 - `analysis/symbols.txt` – names we discover; rebuilt into the ELF by `make`
 - `analysis/NOTES.md` – findings log (keep updated)
 - `build/` – generated (gitignored): `.bin`, `.bin.json`, `.elf`, `.s`, `patched.syx`, `cfw.elf`, `cfw.map`

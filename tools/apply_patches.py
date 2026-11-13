@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply byte patches to a raw firmware image and stamp the patch level into the version.
+"""Apply byte patches to a raw firmware image and stamp the patch level into the SysEx header version.
 
 Usage: apply_patches.py in.bin out.bin [--meta in.bin.json] [--level N] patches/*.patch
 
@@ -17,8 +17,10 @@ wrong firmware version. The first comment line of a patch file is its title.
 Version: the firmware version is major.minor.build.extra (1.3.1563.1717 for the
 stock image, u32s at g_fw_version 0x080081F0, also 6 bytes in the SysEx header).
 The 4th field is replaced by --level (make passes the VERSION file; default: the
-number of applied patches): boot screen shows "Ver: 1.3.1563.<n>". With --meta, out.bin.json is
-written (header version bytes updated + patch list) for `lkfw.py pack --meta`.
+number of applied patches) in the SysEx header only: with --meta, out.bin.json is written
+(header version bytes updated + patch list) for `lkfw.py pack --meta`. g_fw_version in the image
+stays stock, because the device reports all 4 fields in its SysEx 0x70 version reply and Novation
+Components asks for an "update" on any mismatch. The boot screen gets the level from cfw (CFW_REV).
 """
 import argparse
 import json
@@ -81,13 +83,11 @@ def version_bytes(v):
     return bytes([v[0], v[1], v[2] >> 7, v[2] & 0x7F, v[3] >> 7, v[3] & 0x7F])
 
 
-def stamp_version(image: bytearray, level: int):
+def header_version(image: bytes, level: int):
     cur = read_version(image)
     if cur != STOCK_VERSION:
         sys.exit(f"g_fw_version is {cur}, expected stock {STOCK_VERSION} – refusing to stamp")
-    v = (*STOCK_VERSION[:3], level)
-    struct.pack_into("<4I", image, VERSION_ADDR - BASE, *v)
-    return v
+    return (*STOCK_VERSION[:3], level)
 
 
 def main():
@@ -96,7 +96,7 @@ def main():
     ap.add_argument("out")
     ap.add_argument("patches", nargs="*", type=Path)
     ap.add_argument("--meta", type=Path, help="stock .bin.json; writes <out>.json with the new version")
-    ap.add_argument("--level", type=int, help="version field 4, 0..16383 (default: number of patches)")
+    ap.add_argument("--level", type=int, help="header version field 4, 0..16383 (default: number of patches)")
     a = ap.parse_args()
     level = len(a.patches) if a.level is None else a.level
     if not 0 <= level <= 0x3FFF:   # two 7-bit bytes in the SysEx header (version_bytes)
@@ -105,7 +105,7 @@ def main():
     image = bytearray(Path(a.inp).read_bytes())
     for p in a.patches:
         apply(image, p)
-    v = stamp_version(image, level)
+    v = header_version(image, level)
     Path(a.out).write_bytes(image)
     print(f"{a.out}: {len(image)} bytes, version {'.'.join(map(str, v))}")
 
