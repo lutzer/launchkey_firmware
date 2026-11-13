@@ -235,9 +235,9 @@
   connected Play is stock only (goes to the DAW); MIDI Start/Continue/Stop still drive TM + arp.
   Play LED: override layer, green while playing in standalone (redrawn by cfw_poll on playing/standalone
   change, after the popup and after the Shift overlay refresh); released in DAW mode.
-- **One-shot run (Shift + Play, standalone):** cfw_play_press treats id 0x49 or 0x48 with Shift held (feature
-  0x3F) as Shift + Play – which of the two the hardware sends is not confirmed yet (0x49 is captured with
-  0x48 by `transport_daw_changed`, stock `play_press` ignores it). It stops a running transport (FC like
+- **One-shot run (Shift + Play, standalone):** Shift + Play reaches the press dispatcher as plain 0x48 with
+  Shift held (feature 0x3F = 127; probe on hardware 2026-11-13 – no separate shifted id, 0x49 never seen), so
+  cfw_play_press checks feat_get_value(0x3F). It stops a running transport (FC like
   Play) and sets `st.armed` (`tm_arm`); again = cancel. The next transition to playing in
   `apply_transport` (Play, MIDI Start, Continue while stopped; a Start during a run restarts it) consumes
   `armed` and starts `run` at the exact start clock. tm_mode_poll checks `g_clock_ticks - run_start >=

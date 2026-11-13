@@ -91,7 +91,6 @@ void cfw_midi_stop(void)
  * the DAW only (stock).
  */
 #define CTL_PLAY       0x48
-#define CTL_PLAY_SHIFT 0x49     /* captured with Play in standalone; possibly Shift + Play's own id */
 #define FEAT_SHIFT     0x3F
 #define PLAY_GREEN     0x00FF00
 
@@ -146,11 +145,11 @@ static void shift_play(void)
 
 void cfw_play_press(uint32_t id)
 {
-    if ((id != CTL_PLAY && id != CTL_PLAY_SHIFT) || !g_transport.standalone) {
+    if (id != CTL_PLAY || !g_transport.standalone) {
         play_press(id);
         return;
     }
-    if (id == CTL_PLAY_SHIFT || feat_get_value(FEAT_SHIFT)) {
+    if (feat_get_value(FEAT_SHIFT)) {   /* Shift + Play arrives as 0x48 with Shift held */
         shift_play();
         return;
     }

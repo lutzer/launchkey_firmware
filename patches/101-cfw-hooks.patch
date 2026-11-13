@@ -8,21 +8,21 @@
 0x08022a58  08f02eba  14f02abd   # b.w cfw_layout_name_a  was: b.w layout_name_text_a (tail call)
 0x08022e8c  08f014f8  14f010fb   # bl cfw_layout_name_a
 0x08024230  06f04bfe  13f065f9   # bl cfw_layout_name_b  was: bl layout_name_text_b
-0x0802b44c  10b50c21  0cf009ba   # b.w cfw_settings_entry  was: push {r4,lr}; movs r1,#12 (settings_entry)
-0x0802b428  80b5f2f7  0cf03bba   # b.w cfw_settings_count_nav  was: push {r7,lr}; bl device_key_count (1st half)
-0x08015b0c  0146e229  21f0d2be   # b.w cfw_str_get  was: mov r1,r0; cmp r1,#0xe2 (str_get)
+0x0802b44c  10b50c21  0cf001ba   # b.w cfw_settings_entry  was: push {r4,lr}; movs r1,#12 (settings_entry)
+0x0802b428  80b5f2f7  0cf033ba   # b.w cfw_settings_count_nav  was: push {r7,lr}; bl device_key_count (1st half)
+0x08015b0c  0146e229  21f0cabe   # b.w cfw_str_get  was: mov r1,r0; cmp r1,#0xe2 (str_get)
 0x08030968  e3f753f9  06f0dafd   # bl cfw_midi_start  was: bl clock_midi_start (FA)
 0x08030972  e3f757f9  06f0ddfd   # bl cfw_midi_continue  was: bl clock_midi_continue (FB)
 0x0803097c  e3f74df9  06f0e0fd   # bl cfw_midi_stop  was: bl clock_midi_stop (FC)
-0x0801b530  f8b50446  1cf0a8b8   # b.w cfw_io_dispatch_a  was: push {r3-r7,lr}; mov r4,r0
-0x0801b54c  f8b50446  1cf0c2b8   # b.w cfw_io_dispatch_b
-0x0801b574  70b50446  1cf0f4b8   # b.w cfw_io_dispatch_c  was: push {r4-r6,lr}; mov r4,r0
-0x0801b592  f8b50446  1cf0bdb8   # b.w cfw_io_dispatch_d
-0x08020e48  2de9f041  16f0acbc   # b.w cfw_relin_dispatch_pos  was: push.w {r4-r8,lr}
-0x08020e56  2de9f041  16f0c5bc   # b.w cfw_relin_dispatch_hires
-0x08020e8a  2de9f041  16f0cbbc   # b.w cfw_relin_dispatch_step
+0x0801b530  f8b50446  1cf0a0b8   # b.w cfw_io_dispatch_a  was: push {r3-r7,lr}; mov r4,r0
+0x0801b54c  f8b50446  1cf0bab8   # b.w cfw_io_dispatch_b
+0x0801b574  70b50446  1cf0ecb8   # b.w cfw_io_dispatch_c  was: push {r4-r6,lr}; mov r4,r0
+0x0801b592  f8b50446  1cf0b5b8   # b.w cfw_io_dispatch_d
+0x08020e48  2de9f041  16f0a4bc   # b.w cfw_relin_dispatch_pos  was: push.w {r4-r8,lr}
+0x08020e56  2de9f041  16f0bdbc   # b.w cfw_relin_dispatch_hires
+0x08020e8a  2de9f041  16f0c3bc   # b.w cfw_relin_dispatch_step
 0x08016444  0df043fa  20f061ff   # bl cfw_arp_press  was: bl arp_press (press dispatcher 0x080163E0)
 0x08023778  18b5dff8  13f09cbd   # b.w cfw_arp_leds  was: push {r3,r4,lr}; ldr.w r0,[pc,#0x5f4] (arp LED refresh)
 0x08016746  0ff018fa  20f022fe   # bl cfw_arp_poll  was: bl arp_poll (main loop): the arp pauses while the transport is stopped
 0x0801642c  0cf070f9  21f090f8   # bl cfw_play_press  was: bl play_press (press dispatcher 0x080163E0)
-0x08022c54  08f03dfa  14f006fd   # bl cfw_shift_leds  was: bl shift_leds_tail (last call of the refresh)
+0x08022c54  08f03dfa  14f0fdfc   # bl cfw_shift_leds  was: bl shift_leds_tail (last call of the refresh)
