@@ -5,6 +5,8 @@
 
 extern uint32_t __cfw_bss_start[], __cfw_bss_end[];
 
+static void play_led_poll(void);
+
 /* Hook: replaces `bl feat_scale_init` at the end of feature init (0x0801592C). */
 void cfw_init(void)
 {
@@ -24,6 +26,7 @@ void cfw_poll(void)
         feat_add_listener(tm_feat_changed);
     }
     tm_mode_poll();
+    play_led_poll();
 }
 
 /* Hook: replaces `bl fmt_version` in ui_show_boot_screen (0x08016E42). Visible proof that cave code runs. */
@@ -80,14 +83,38 @@ void cfw_midi_stop(void)
     tm_transport(TM_STOP);
 }
 
-/* Hook: the Play button handler in the press dispatcher. Play starts / stops Turing Machine mode;
- * the stock MIDI Start / Stop output (standalone only) is synced to it first, so they agree.
+/* Hook: the Play button handler in the press dispatcher. Without a DAW connection Play is the transport
+ * of Turing Machine mode and the arp (start / stop); the stock MIDI Start / Stop output is synced to it
+ * first, so they agree. With a DAW connected Play belongs to the DAW only (stock).
  */
-#define CTL_PLAY 0x48
+#define CTL_PLAY   0x48
+#define PLAY_GREEN 0x00FF00
+
+/* Play LED: green while playing (standalone); with a DAW connected the DAW drives it. */
+static void play_led(void)
+{
+    if (g_transport.standalone) {
+        led_override_color(CTL_PLAY, tm_playing() ? PLAY_GREEN : 0);
+        led_override(CTL_PLAY, LED_STATIC);
+    } else {
+        led_override(CTL_PLAY, LED_RELEASE);
+    }
+}
+
+/* Redraw the Play LED when the transport or the DAW connection changed (MIDI Start / Stop included). */
+static void play_led_poll(void)
+{
+    static uint8_t drawn;       /* bit 0 playing, bit 1 standalone, bit 7 valid */
+    uint8_t now = (uint8_t)(0x80 | (tm_playing() ? 1 : 0) | (g_transport.standalone ? 2 : 0));
+    if (now != drawn) {
+        drawn = now;
+        play_led();
+    }
+}
 
 void cfw_play_press(uint32_t id)
 {
-    if (id != CTL_PLAY) {
+    if (id != CTL_PLAY || !g_transport.standalone) {
         play_press(id);
         return;
     }
@@ -95,6 +122,8 @@ void cfw_play_press(uint32_t id)
     g_transport.running = (uint8_t)!start;
     play_press(id);
     tm_play_button(start);
+    tm_popup("Transport", start ? "Playing" : "Not Playing");
+    play_led();
 }
 
 /* Hook: last call of the Shift overlay LED refresh, after it drew the mode pads. */
@@ -102,6 +131,8 @@ void cfw_shift_leds(void)
 {
     shift_leds_tail();
     tm_shift_leds();
+    if (g_transport.standalone)
+        play_led();
 }
 
 /* ---- input dispatchers: replace the stock ones (see cfw/hooks.txt) ---- */

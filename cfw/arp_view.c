@@ -6,11 +6,14 @@
  *   hold timers expires; with the screen already shown and the pads already on the arp pattern layout
  *   neither timer runs, so the release switched the arp off. Here the hold timer always runs (its expiry
  *   clears pending_off and shows the screen).
+ * - The arp follows the transport (Play button in standalone, MIDI Start / Continue / Stop, see
+ *   tm_playing): stopped = paused, the sounding note is released; held / latched keys play on resume.
  *
- * Hooks (cfw/hooks.txt): the arp press handler in the central press dispatcher (0x080163E0) and the entry
- * of the arp LED refresh (0x08023778). */
+ * Hooks (cfw/hooks.txt): the arp press handler in the central press dispatcher (0x080163E0), the entry
+ * of the arp LED refresh (0x08023778) and the arp engine call in the main loop (0x08016746). */
 #include <stdint.h>
 #include "fw_api.h"
+#include "tm_mode.h"
 
 #define CTL_ARP          0x1E
 #define CTL_ENC_UP       0x25
@@ -66,4 +69,25 @@ void cfw_arp_press(uint32_t id)
     arp_press(id);
     if (id == CTL_ARP && g_arp_view.pending_off && !g_arp_view.hold_timer)
         g_arp_view.hold_timer = HOLD_MS;
+}
+
+/* Hook: the arp engine call in the main loop. While stopped the engine runs with the arp switched off
+ * for the call: it keeps its time references current (no catch-up burst on resume) and returns before
+ * scheduling notes. */
+void cfw_arp_poll(void)
+{
+    static uint8_t paused;
+    if (tm_playing()) {
+        paused = 0;
+        arp_poll();
+        return;
+    }
+    if (!paused) {
+        paused = 1;
+        arp_notes_flush(&g_arp_notes);  /* note-off for the sounding arp note */
+    }
+    uint8_t on = g_arp_state.enabled;
+    g_arp_state.enabled = 0;
+    arp_poll();
+    g_arp_state.enabled = on;
 }

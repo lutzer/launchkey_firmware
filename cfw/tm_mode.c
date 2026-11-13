@@ -12,8 +12,8 @@
  *                      so a locked loop stands still) and pad presses flip the step they show
  *   > (16)             enable/disable (above Function, saved): disabled mutes the notes; the
  *                      sequencer keeps following clock, transport and Play (pads keep moving)
- *   Play (0x48)        start from the first step / stop, in every mode (cfw_play_press); the
- *                      sequencer starts stopped
+ *   Play (0x48)        start from the first step / stop, in every mode, without a DAW
+ *                      connection only (cfw_play_press); the sequencer starts stopped
  *   up/down (34/35)    octave; with Function held: rotate the loop one step right / left (the
  *                      pattern moves under the start and the playhead, heard from the next step)
  *   encoders 1..8      probability, length, rate, range, gate length, trigger heads, velocity
@@ -540,12 +540,15 @@ void tm_shift_leds(void)
     led_override(PAD_SELECT, LED_STATIC);
 }
 
-/* Play button: like MIDI Start / Stop. */
+/* Play button (standalone): like MIDI Start / Stop. */
 void tm_play_button(int start)
 {
     apply_transport(start ? TM_START : TM_STOP, g_clock_ticks);
-    if (st.active)
-        popup("Turing Machine", start ? "Playing" : "Stopped");
+}
+
+void tm_popup(const char *title, const char *value)
+{
+    popup(title, value);
 }
 
 /* ---- mode switching ---- */

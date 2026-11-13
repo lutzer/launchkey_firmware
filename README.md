@@ -10,6 +10,12 @@ firmware version 1.3 build 1563. It adds:
   Latch: **up = on, down = off**; the arrow of the current setting is lit (Shift + Arp still toggles Latch)
 - **Holding Arp keeps the arp on** – with the arp on, holding Arp only opens the Arp screen; a short tap
   still switches the arp off
+- **Play button transport** – **Play** starts and pauses the arp and the Turing Machine together (popup
+  "Transport: Playing / Not Playing", Play lights green while playing); MIDI Start / Continue / Stop do the
+  same. While stopped the arp is silent; held or latched keys play as soon as you press Play. With a DAW
+  connected, Play goes only to the DAW – the arp and the Turing Machine then follow the DAW's MIDI Start /
+  Stop, so let the DAW send MIDI clock and transport to the Launchkey's MIDI port (otherwise the arp stays
+  paused)
 
 > ⚠️ **Use at your own risk.** Flashing modified firmware can leave the device unusable and may void your
 > warranty. Read [Safety & recovery](#safety--recovery) before your first upload.
@@ -33,7 +39,7 @@ value picks a note from the current scale, and trigger heads decide whether a st
 |---|---|
 | Top row (green) | Register bits 1–8, moving one pad to the right per step. The **yellow** pad is the step the sequence restarts from (MIDI Start / reset), so it moves along too. Dark = beyond the loop length. |
 | Bottom row (white) | **Scale notes** (pad 1 = root, pad 8 = 8th note of 8-note scales). Press to switch a note on (bright) or off (dim); pads beyond the scale are dark. A disabled note is replaced by the closest enabled note. With Scale off all eight pads are lit and all 12 semitones are used. |
-| **Play** (transport) | **Start / stop** the sequencer, in every pad mode. Start begins at the first step of the loop (the yellow pad) on the next clock tick. Without a DAW connection Play also sends MIDI Start / Stop as usual. |
+| **Play** (transport) | **Start / stop** the sequencer (and the arp), in every pad mode. Start begins at the first step of the loop (the yellow pad) on the next clock tick. Play also sends MIDI Start / Stop as usual. With a DAW connected Play only goes to the DAW; use the DAW's MIDI transport instead. |
 | **>** (above Function) | **Enable / disable** the sequencer (bright = enabled). Disabled **mutes** its notes; everything else keeps going (clock, Play, MIDI Start / Stop, the pattern on the pads), so enabling it again brings the notes back in time. Saved. |
 | **Function** (next to the pads) | **Hold.** While held, the pads show the loop in playing order starting from its first step: pad 1 (yellow) = step 1, then left to right, top row = steps 1–8, bottom row = 9–16. The **playhead** (the step playing now) is mint, or amber when it is on step 1. The view stays put while the sequence runs (only bits that randomly change update), and **pressing a pad flips that step**. **Up / Down rotate the loop** one step right / left (ends wrap around; start step and playhead stay put, so the shifted pattern plays from the next step on). |
 | **Up / Down arrows** (next to the pads) | **Octave** −4 to +4 (0 = lowest note MIDI 48 + root, the keyboard's default octave; an arrow is dim when the end is reached). **With Function held: rotate the loop** one step right (up) or left (down). You can use this rotation to shift a pattern on the downbeat for example. |
@@ -58,7 +64,7 @@ Turning an encoder shows its value on the display.
 - **Tempo** follows the device: the internal tempo, or external MIDI clock when connected.
 - **MIDI transport:** Start goes back to the first step of the loop (the yellow pad) and plays it on the
   next clock tick (the downbeat), Continue resumes, Stop pauses – also while another pad mode is selected or the sequencer is disabled.
-  The **Play** button does the same as Start / Stop.
+  The **Play** button does the same as Start / Stop (without a DAW connection).
 - **Running in the background:** once started, the sequencer keeps playing after you switch to
   another pad mode; its pads, buttons and popups only show while Turing Machine mode is selected.
 - **Notes** go out on the **Turing Channel** via USB MIDI and the TRS MIDI out (velocity: see encoders 7 and 8). Set it in

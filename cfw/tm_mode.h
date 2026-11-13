@@ -36,8 +36,10 @@ int tm_enc_event(int list, uint32_t id, int32_t delta);
 void tm_transport(int event);
 /* transport state (Play button, MIDI Start..Stop) */
 int tm_playing(void);
-/* Play button (main loop): start from the first step / stop */
+/* Play button (main loop, standalone only): start from the first step / stop */
 void tm_play_button(int start);
+/* two-line popup (title, value); redraws the mode's button LEDs after the stock popup start */
+void tm_popup(const char *title, const char *value);
 /* after the Shift overlay drew its LEDs: colour the pad that selects the mode */
 void tm_shift_leds(void);
 /* mode popup content (title + encoder labels), without starting a popup */

@@ -40,8 +40,9 @@
 # Arp screen: arrows set the latch, a long press of Arp never switches it off (cfw/arp_view.c)
 0x08016444  bl  cfw_arp_press     0df043fa   # was: bl arp_press (press dispatcher 0x080163E0)
 0x08023778  b.w cfw_arp_leds      18b5dff8   # was: push {r3,r4,lr}; ldr.w r0,[pc,#0x5f4] (arp LED refresh)
+0x08016746  bl  cfw_arp_poll      0ff018fa   # was: bl arp_poll (main loop): the arp pauses while the transport is stopped
 
-# Play button: also starts / stops Turing Machine mode (cfw/cfw_init.c)
+# Play button: standalone = transport for Turing Machine mode and the arp (cfw/cfw_init.c)
 0x0801642c  bl  cfw_play_press    0cf070f9   # was: bl play_press (press dispatcher 0x080163E0)
 
 # Shift overlay LED refresh (0x08022A88): the Turing Machine pad shows enabled / disabled (cfw/cfw_init.c)

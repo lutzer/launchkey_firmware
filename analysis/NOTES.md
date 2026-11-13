@@ -175,6 +175,15 @@
   pad layout != 0xD) clear it on expiry. With the view shown and the pads on layout 0xD neither runs, so a long
   press switched the arp off on release. cfw sets the hold timer whenever pending_off is set and it is 0
   (expiry: pending_off = 0 + `arp_view_open`, which simply re-shows the view).
+- **Arp engine:** `arp_poll` 0x08025B7A, called once per main-loop pass at 0x08016746. Params/state `g_arp`
+  0x20001114 (+0x6C ms ref, +0x70 tick ref, note queue `g_arp_notes` = +0x90: 12-byte entries, u8 count at
+  queue+0x90); flags `g_arp_state` 0x2000F448 (+0 enabled; `arp_set_enabled` 0x08025E3C). arp_poll first
+  updates its elapsed-ms/-tick refs, then returns if enabled == 0. Stock it free-runs from g_clock_ticks and
+  syncs its phase to the song position (g_clock+0x18) while g_clock.running. `arp_notes_flush` 0x0802C264
+  removes every queued note with note-off (used when the arp is switched off).
+- cfw `cfw_arp_poll` (hook 0x08016746) gates the arp with the transport (`tm_playing()`): stopped -> one
+  flush (releases the sounding note), then arp_poll runs with enabled cleared for the call (refs stay
+  current, no catch-up burst on resume; held/latched keys stay in the arp).
 - Chord Map performance-modifier view = menu 7 (state 0x200010AC): pads 5-7 / 13-15 pick Arp Up/Down,
   Inversion Up/Down, Bass + Chord, Chord Split; control 0x10 toggles their latch ("Latch ON/OFF").
 
@@ -220,8 +229,12 @@
 - **Play button (control 0x48):** stock `play_press` 0x08022710 (press dispatcher, no menu check) sends FA/FC on
   `g_transport` 0x2000F480 {u8 standalone, u8 running, u32 port} when standalone (= no DAW connection, set by
   `transport_daw_changed` 0x08022752 from 0x08026858 == 0; it then captures 0x48/0x49) and toggles running.
-  cfw_play_press sets `running` = TM playing before calling it, so FA/FC always match the TM toggle
-  (`tm_play_button`: start = rewind like MIDI Start). With a DAW connected only the TM toggles.
+  cfw_play_press (standalone only) sets `running` = TM playing before calling it, so FA/FC always match the
+  TM toggle (`tm_play_button`: start = rewind like MIDI Start), and shows "Transport" / "Playing" | "Not
+  Playing" in every pad mode. The transport (tm_playing) also gates the arp (cfw_arp_poll). With a DAW
+  connected Play is stock only (goes to the DAW); MIDI Start/Continue/Stop still drive TM + arp.
+  Play LED: override layer, green while playing in standalone (redrawn by cfw_poll on playing/standalone
+  change, after the popup and after the Shift overlay refresh); released in DAW mode.
 - **Shift overlay LEDs:** `shift_overlay_leds` 0x08022A88 (menu 0xE, via 0x08022CD8) draws through `shift_led`
   0x08022A5C (only if `ui_menu_owns(id, 0xE)`, then `led_set` 0x0802A612 = led_override(id, 0) + colour):
   top row = encoder modes, bottom row = pad modes (current 0x0086FF, available 0x001642), 0x28.. other buttons.

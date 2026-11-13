@@ -166,6 +166,18 @@ void arp_view_open(void);       /* arp on + view shown (stock open path, incl. u
 void arp_led_set(uint32_t id, uint32_t rgb);     /* only if the arp view owns the control */
 void arp_popup_title(uint32_t key, uint32_t str_id);
 
+/* Arp engine (main loop, once per pass): updates its elapsed-ms / elapsed-tick references, then returns
+ * early while the arp is off (enabled == 0); otherwise steps the pattern and ages the note queue. */
+typedef struct {
+    uint8_t enabled;        /* arp on */
+} arp_state_t;
+extern volatile arp_state_t g_arp_state;
+void arp_poll(void);
+/* Note queue of the arp (g_arp + 0x90): flush removes every queued note with a note-off. */
+typedef struct arp_notes arp_notes_t;
+extern arp_notes_t g_arp_notes;
+void arp_notes_flush(arp_notes_t *notes);
+
 /* Play button (control 0x48): in standalone mode (no DAW connection) the stock press handler sends
  * MIDI Start (running 0) or Stop (running 1) on its port and toggles running; it ignores other ids. */
 typedef struct {
