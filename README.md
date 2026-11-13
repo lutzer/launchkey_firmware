@@ -16,7 +16,8 @@ Custom firmware for the **Novation Launchkey Mini MK4** (25 and 37 keys), built 
   Stop, so let the DAW send MIDI clock and transport to the Launchkey's MIDI port (otherwise the arp stays
   paused)
 - **One-shot run (Shift + Play)** – arms the transport instead of starting it ("Transport: Armed 8 Steps",
-  Play flashes green; if it was playing, it stops first). While armed, **encoder 1 sets the length: 1–32
+  Play flashes green; if it was playing, it stops first). This mode allows you to record a small sequence
+  into a sequencer, without repeating it over and over. While armed, **encoder 1 sets the length: 1–32
   steps of 1/16** (saved, default 8 = two beats), in every pad mode. The next start – Play or MIDI Start /
   Continue – runs for that long and then stops the transport by itself. Shift + Play while armed cancels.
   Only without a DAW connection (connecting a DAW cancels the arm). The window is clock time, not arp steps: the Turing Machine starts on its
