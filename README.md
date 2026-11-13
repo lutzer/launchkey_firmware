@@ -23,7 +23,7 @@ Custom firmware for the **Novation Launchkey Mini MK4** (25 and 37 keys), built 
   Only without a DAW connection (connecting a DAW cancels the arm). The window is clock time, not arp steps: the Turing Machine starts on its
   first step, the arp keeps its own phase, so an arp note can fall right at the cut
 
-> ⚠️ **Use at your own risk.** Flashing the device with the custom firmware doesnt change its bootloader, so you can revert the device back to the stock firmware, using novations component software. However flashing modified firmware can leave the device unusable and may void your warranty. Read [Safety & recovery](#safety--recovery) before your first upload.
+> ⚠️ **Use at your own risk.** Flashing the device with the custom firmware doesnt change its bootloader, so you can revert the device back to the stock firmware, using novations component software. However flashing modified firmware has a risk of leaving the device unusable and may void your warranty. Read [Safety & recovery](#safety--recovery) before your first upload.
 
 ---
 
