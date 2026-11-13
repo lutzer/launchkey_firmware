@@ -6,6 +6,7 @@
 extern uint32_t __cfw_bss_start[], __cfw_bss_end[];
 
 static void play_led_poll(void);
+static void run_end_poll(void);
 
 /* Hook: replaces `bl feat_scale_init` at the end of feature init (0x0801592C). */
 void cfw_init(void)
@@ -26,6 +27,7 @@ void cfw_poll(void)
         feat_add_listener(tm_feat_changed);
     }
     tm_mode_poll();
+    run_end_poll();
     play_led_poll();
 }
 
@@ -85,17 +87,21 @@ void cfw_midi_stop(void)
 
 /* Hook: the Play button handler in the press dispatcher. Without a DAW connection Play is the transport
  * of Turing Machine mode and the arp (start / stop); the stock MIDI Start / Stop output is synced to it
- * first, so they agree. With a DAW connected Play belongs to the DAW only (stock).
+ * first, so they agree. Shift + Play arms a one-shot run (tm_arm). With a DAW connected Play belongs to
+ * the DAW only (stock).
  */
-#define CTL_PLAY   0x48
-#define PLAY_GREEN 0x00FF00
+#define CTL_PLAY       0x48
+#define CTL_PLAY_SHIFT 0x49     /* captured with Play in standalone; possibly Shift + Play's own id */
+#define FEAT_SHIFT     0x3F
+#define PLAY_GREEN     0x00FF00
 
-/* Play LED: green while playing (standalone); with a DAW connected the DAW drives it. */
+/* Play LED: green while playing, flashing while armed (standalone); with a DAW connected the DAW drives it. */
 static void play_led(void)
 {
     if (g_transport.standalone) {
-        led_override_color(CTL_PLAY, tm_playing() ? PLAY_GREEN : 0);
-        led_override(CTL_PLAY, LED_STATIC);
+        int armed = tm_armed() && !tm_playing();
+        led_override_color(CTL_PLAY, tm_playing() || armed ? PLAY_GREEN : 0);
+        led_override(CTL_PLAY, armed ? LED_FLASH : LED_STATIC);
     } else {
         led_override(CTL_PLAY, LED_RELEASE);
     }
@@ -104,18 +110,48 @@ static void play_led(void)
 /* Redraw the Play LED when the transport or the DAW connection changed (MIDI Start / Stop included). */
 static void play_led_poll(void)
 {
-    static uint8_t drawn;       /* bit 0 playing, bit 1 standalone, bit 7 valid */
-    uint8_t now = (uint8_t)(0x80 | (tm_playing() ? 1 : 0) | (g_transport.standalone ? 2 : 0));
+    static uint8_t drawn;       /* bit 0 playing, bit 1 standalone, bit 2 armed, bit 7 valid */
+    uint8_t now = (uint8_t)(0x80 | (tm_playing() ? 1 : 0) | (g_transport.standalone ? 2 : 0) |
+                            (tm_armed() ? 4 : 0));
     if (now != drawn) {
         drawn = now;
         play_led();
     }
 }
 
+/* A one-shot run stopped the transport: MIDI Stop, if our Play sent the Start (running = 1); a run
+ * started by an external MIDI Start leaves running 0, so nothing is echoed back. */
+static void run_end_poll(void)
+{
+    if (tm_run_done() && g_transport.standalone && g_transport.running)
+        play_press(CTL_PLAY);
+}
+
+static void shift_play(void)
+{
+    if (tm_armed()) {
+        tm_arm(0);
+        tm_popup("Transport", "Not Playing");
+    } else {
+        if (tm_playing()) {     /* stop like Play does */
+            g_transport.running = 1;
+            play_press(CTL_PLAY);
+            tm_play_button(0);
+        }
+        tm_arm(1);
+        tm_popup("Transport", "Armed 8 Steps");
+    }
+    play_led();
+}
+
 void cfw_play_press(uint32_t id)
 {
-    if (id != CTL_PLAY || !g_transport.standalone) {
+    if ((id != CTL_PLAY && id != CTL_PLAY_SHIFT) || !g_transport.standalone) {
         play_press(id);
+        return;
+    }
+    if (id == CTL_PLAY_SHIFT || feat_get_value(FEAT_SHIFT)) {
+        shift_play();
         return;
     }
     int start = !tm_playing();

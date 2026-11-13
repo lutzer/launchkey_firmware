@@ -127,6 +127,10 @@ static struct {
                               * button press, i.e. whenever a menu may be opened */
     uint8_t pos;             /* steps since the loop start, mod length (for rewinding) */
     uint8_t popup_pending;   /* show the mode popup from the main loop, after the stock one */
+    uint8_t armed;           /* Shift + Play: the next start is a one-shot run */
+    uint8_t run;             /* one-shot run in progress: stops after TM_RUN_STEPS 1/16 steps */
+    uint8_t run_done;        /* a run ended by itself (tm_run_done) */
+    uint32_t run_start;      /* clock tick the run started on */
 } st;
 
 /* MIDI transport recorded by tm_transport, applied in tm_mode_poll */
@@ -513,6 +517,7 @@ static void apply_transport(int event, uint32_t clock)
 {
     if (event == TM_STOP) {
         st.playing = 0;
+        st.run = 0;
         note_off();
         return;
     }
@@ -522,6 +527,11 @@ static void apply_transport(int event, uint32_t clock)
     } else if (st.playing) {
         return;                 /* Continue while running: nothing to do */
     }
+    if (st.armed || (event == TM_START && st.run)) {   /* a restart during a run restarts it */
+        st.armed = 0;
+        st.run = 1;
+        st.run_start = clock;
+    }
     st.playing = 1;
     st.last_clock = clock;
 }
@@ -529,6 +539,23 @@ static void apply_transport(int event, uint32_t clock)
 int tm_playing(void)
 {
     return st.playing;
+}
+
+void tm_arm(int on)
+{
+    st.armed = (uint8_t)(on != 0);
+}
+
+int tm_armed(void)
+{
+    return st.armed;
+}
+
+int tm_run_done(void)
+{
+    int done = st.run_done;
+    st.run_done = 0;
+    return done;
 }
 
 /* Shift held: the pad that selects the mode is green, bright = enabled (stock: blue when selected). */
@@ -782,6 +809,11 @@ void tm_mode_poll(void)
     if (event) {
         transport_event = 0;
         apply_transport(event, transport_clock);
+    }
+    /* end of a one-shot run: checked before stepping, so the step after it never plays */
+    if (st.playing && st.run && g_clock_ticks - st.run_start >= TM_RUN_STEPS * TM_RUN_STEP_TICKS) {
+        apply_transport(TM_STOP, g_clock_ticks);
+        st.run_done = 1;
     }
     if (st.playing) {
         advance_clock();

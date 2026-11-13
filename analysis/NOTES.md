@@ -235,6 +235,17 @@
   connected Play is stock only (goes to the DAW); MIDI Start/Continue/Stop still drive TM + arp.
   Play LED: override layer, green while playing in standalone (redrawn by cfw_poll on playing/standalone
   change, after the popup and after the Shift overlay refresh); released in DAW mode.
+- **One-shot run (Shift + Play, standalone):** cfw_play_press treats id 0x49 or 0x48 with Shift held (feature
+  0x3F) as Shift + Play – which of the two the hardware sends is not confirmed yet (0x49 is captured with
+  0x48 by `transport_daw_changed`, stock `play_press` ignores it). It stops a running transport (FC like
+  Play) and sets `st.armed` (`tm_arm`); again = cancel. The next transition to playing in
+  `apply_transport` (Play, MIDI Start, Continue while stopped; a Start during a run restarts it) consumes
+  `armed` and starts `run` at the exact start clock. tm_mode_poll checks `g_clock_ticks - run_start >=
+  TM_RUN_STEPS * TM_RUN_STEP_TICKS` (8 × 6 ticks) **before** advance_clock, so the step after the window
+  never plays; it stops via apply_transport(TM_STOP) and sets run_done. cfw_poll (`run_end_poll`) then sends
+  FC through play_press only if `g_transport.running` (= our Play sent FA; external Start leaves it 0).
+  Play LED flashes (LED_FLASH) while armed and stopped. Length is fixed for now (tm_mode.h constants;
+  popup text "Armed 8 Steps" hard-coded) – a setting would become a feature param >= 0x40.
 - **Shift overlay LEDs:** `shift_overlay_leds` 0x08022A88 (menu 0xE, via 0x08022CD8) draws through `shift_led`
   0x08022A5C (only if `ui_menu_owns(id, 0xE)`, then `led_set` 0x0802A612 = led_override(id, 0) + colour):
   top row = encoder modes, bottom row = pad modes (current 0x0086FF, available 0x001642), 0x28.. other buttons.

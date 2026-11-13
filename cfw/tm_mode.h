@@ -38,6 +38,14 @@ void tm_transport(int event);
 int tm_playing(void);
 /* Play button (main loop, standalone only): start from the first step / stop */
 void tm_play_button(int start);
+/* Shift + Play: arm a one-shot run. The next start (Play, MIDI Start / Continue) plays TM_RUN_STEPS
+ * steps of TM_RUN_STEP_TICKS clock ticks (1/16 at 24 PPQN), then stops the transport. */
+#define TM_RUN_STEPS       8
+#define TM_RUN_STEP_TICKS  6
+void tm_arm(int on);
+int tm_armed(void);
+/* 1 once after a run stopped the transport by itself */
+int tm_run_done(void);
 /* two-line popup (title, value); redraws the mode's button LEDs after the stock popup start */
 void tm_popup(const char *title, const char *value);
 /* after the Shift overlay drew its LEDs: colour the pad that selects the mode */
