@@ -562,7 +562,7 @@ int tm_armed(void)
 void tm_run_popup(void)
 {
     char v[20];
-    put_str(put_num(put_str(v, "Armed "), st.run_steps), " Steps");
+    *put_str(put_num(put_str(v, "Armed "), st.run_steps), " Steps") = 0;    /* put_* don't terminate */
     popup("Transport", v);
 }
 
